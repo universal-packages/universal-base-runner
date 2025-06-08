@@ -1,0 +1,56 @@
+{
+  "name": "@universal-packages/base-runner",
+  "version": "0.0.0",
+  "description": "Base class for runners.",
+  "author": "David De Anda <david@universal-packages.com> (https://github.com/universal-packages)",
+  "license": "MIT",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "type": "module",
+  "repository": "git@github.com:universal-packages/universal-base-runner.git",
+  "scripts": {
+    "build": "tsc --p tsconfig.dis.json",
+    "test": "tsx ./src/tests.test.ts",
+    "test:coverage": "c8 --reporter=text --reporter=json --reporter=html --reporter=lcov --reporter=text-summary tsx ./src/tests.test.ts",
+    "test:watch": "tsx watch ./src/tests.test.ts",
+    "format": "prettier --write",
+    "format:all": "npm run format \"./**/*.{ts,tsx,js,jsx,json}\"",
+    "update-universal-dependencies": "umaintenance update-universal-dependencies",
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "@universal-packages/event-emitter": "^2.0.1",
+    "@universal-packages/time-measurer": "^2.0.0"
+  },
+  "devDependencies": {
+    "@trivago/prettier-plugin-sort-imports": "^5.2.2",
+    "@types/node": "^22.15.17",
+    "@universal-packages/tsconfig": "^1.0.2",
+    "c8": "^10.1.3",
+    "husky": "^9.1.7",
+    "prettier": "^3.5.3",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  },
+  "prettier": {
+    "semi": false,
+    "singleQuote": true,
+    "printWidth": 180,
+    "trailingComma": "none",
+    "plugins": [
+      "@trivago/prettier-plugin-sort-imports"
+    ],
+    "importOrder": [
+      "^[./]"
+    ],
+    "importOrderSeparation": true,
+    "importOrderSortSpecifiers": true,
+    "importOrderSideEffects": true,
+    "importOrderParserPlugins": [
+      "typescript",
+      "jsx",
+      "classProperties",
+      "decorators-legacy"
+    ]
+  }
+}

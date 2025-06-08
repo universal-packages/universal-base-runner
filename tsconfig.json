@@ -1,0 +1,4 @@
+{
+  "extends": "@universal-packages/tsconfig/node/tsconfig.json",
+  "include": ["./src", "./example"]
+}
