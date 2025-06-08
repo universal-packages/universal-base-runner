@@ -22,8 +22,6 @@ jobs:
       - run: cp package.json dist
       - run: cp README.md dist
       - run: cp LICENSE.md dist
-      - run: rsync -a --prune-empty-dirs --include '*/' --exclude '*.ts' src/ dist/
-      - run: cp -a bin dist
 
       - uses: softprops/action-gh-release@v2
 
