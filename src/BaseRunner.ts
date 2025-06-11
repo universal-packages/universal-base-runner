@@ -1,35 +1,7 @@
 import { EventEmitter } from '@universal-packages/event-emitter'
 import { TimeMeasurer } from '@universal-packages/time-measurer'
 
-import { BaseRunnerOptions } from './BaseRunner.types'
-
-export enum Status {
-  Idle = 'idle',
-  Preparing = 'preparing',
-  Running = 'running',
-  Releasing = 'releasing',
-  Succeeded = 'succeeded',
-  Error = 'error',
-  Failed = 'failed',
-  Stopping = 'stopping',
-  Stopped = 'stopped',
-  Skipped = 'skipped'
-}
-
-interface BaseRunnerEvents {
-  [Status.Preparing]: { startedAt: Date }
-  prepared: { startedAt: Date; finishedAt: Date }
-  [Status.Running]: { startedAt: Date }
-  [Status.Releasing]: { startedAt: Date }
-  released: { startedAt: Date; finishedAt: Date }
-  [Status.Succeeded]: { startedAt: Date; finishedAt: Date }
-  'timed-out': { startedAt: Date; timedOutAt: Date }
-  [Status.Failed]: { reason?: string; startedAt: Date; finishedAt: Date }
-  [Status.Stopping]: { reason?: string; startedAt: Date; stoppingAt: Date }
-  [Status.Stopped]: { reason?: string; startedAt: Date; stoppedAt: Date }
-  [Status.Skipped]: { reason?: string; skippedAt: Date }
-  warning: {}
-}
+import { BaseRunnerEvents, BaseRunnerOptions, Status } from './BaseRunner.types'
 
 const STATUS_LEVEL_MAP = {
   [Status.Idle]: 0,

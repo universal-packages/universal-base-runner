@@ -1,4 +1,5 @@
-import { BaseRunner, Status } from './BaseRunner'
+import { BaseRunner } from './BaseRunner'
+import { Status } from './BaseRunner.types'
 import { assert, assertEquals, runTest } from './utils.test'
 
 // Test implementation of BaseRunner
@@ -375,9 +376,9 @@ export async function baseRunnerTest() {
     runner.on('warning', (event) => (warningEvent = event))
 
     const runPromise = runner.run()
-    
+
     // Wait a bit for preparing to start, then try to run again
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await new Promise((resolve) => setTimeout(resolve, 50))
     await runner.run()
 
     await runPromise
@@ -394,9 +395,9 @@ export async function baseRunnerTest() {
     runner.on('warning', (event) => (warningEvent = event))
 
     const runPromise = runner.run()
-    
+
     // Wait for running state to start, then try to run again
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await new Promise((resolve) => setTimeout(resolve, 50))
     await runner.run()
 
     await runPromise
@@ -413,9 +414,9 @@ export async function baseRunnerTest() {
     runner.on('warning', (event) => (warningEvent = event))
 
     const runPromise = runner.run()
-    
+
     // Wait for releasing state to start, then try to run again
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await new Promise((resolve) => setTimeout(resolve, 50))
     await runner.run()
 
     await runPromise
@@ -432,7 +433,7 @@ export async function baseRunnerTest() {
     runner.on('warning', (event) => warningEvents.push(event))
 
     const runPromise = runner.run()
-    
+
     // Stop the runner
     setTimeout(() => runner.stop('First stop'), 50)
     // Try to stop again while already stopping
@@ -441,7 +442,10 @@ export async function baseRunnerTest() {
     await runPromise
 
     assert(warningEvents.length > 0, 'Warning event should have been emitted')
-    assert(warningEvents.some(e => e.message === 'Stop was called but runner is already stopping'), 'Should warn about already stopping')
+    assert(
+      warningEvents.some((e) => e.message === 'Stop was called but runner is already stopping'),
+      'Should warn about already stopping'
+    )
   })
 
   await runTest('BaseRunner should emit warning when trying to stop skipped runner', async () => {
@@ -465,7 +469,7 @@ export async function baseRunnerTest() {
     runner.on('warning', (event) => (warningEvent = event))
 
     const runPromise = runner.run()
-    
+
     // Wait for releasing phase and try to stop
     setTimeout(() => runner.stop('Stop during release'), 50)
 
@@ -490,15 +494,15 @@ export async function baseRunnerTest() {
 
   await runTest('BaseRunner should emit warning when trying to stop running runner after run finished', async () => {
     const runner = new TestRunner()
-    
+
     let warningEvent: any = null
     runner.on('warning', (event) => (warningEvent = event))
 
     // Directly set the internal state to simulate a runner that finished running but is still in Running state
     const runPromise = runner.run()
-    
+
     // Wait for the run to complete and try to stop
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await new Promise((resolve) => setTimeout(resolve, 50))
     await runner.stop('Try to stop after run finished')
 
     await runPromise
@@ -589,7 +593,7 @@ export async function baseRunnerTest() {
       protected override async internalRun(): Promise<string | undefined> {
         // Immediately mark as finished but don't change state
         this._forceRunFinished = true
-        await new Promise(resolve => setTimeout(resolve, 100))
+        await new Promise((resolve) => setTimeout(resolve, 100))
         return undefined
       }
 
@@ -613,7 +617,7 @@ export async function baseRunnerTest() {
     runner.on('warning', (event) => (warningEvent = event))
 
     const runPromise = runner.run()
-    
+
     // Wait a bit for the run to start and then force run finished state
     setTimeout(() => {
       runner.forceRunFinished()
@@ -634,7 +638,7 @@ export async function baseRunnerTest() {
     runner.on('stopped', (event) => (stoppedEvent = event))
 
     const runPromise = runner.run()
-    
+
     // Stop while preparing - this should set _markedAsStopping = true
     setTimeout(() => runner.stop('Stop during prepare'), 30)
 
