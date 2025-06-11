@@ -1,5 +1,5 @@
 import { EventEmitter } from '@universal-packages/event-emitter'
-import { TimeMeasurer } from '@universal-packages/time-measurer'
+import { Measurement, TimeMeasurer } from '@universal-packages/time-measurer'
 
 import { BaseRunnerEvents, BaseRunnerOptions, Status } from './BaseRunner.types'
 
@@ -36,6 +36,38 @@ export class BaseRunner<TEventMap extends BaseRunnerEvents = BaseRunnerEvents> e
   private _stoppingIsActive: boolean = false
   private _failureReason?: string
   private _runHasFinished: boolean = false
+  private _error?: Error
+  private _skipReason?: string
+  private _finishedAt: Date | null = null
+  private _measurement: Measurement | null = null
+
+  public get status(): Status {
+    return this._status
+  }
+
+  public get error(): Error | null {
+    return this._error || null
+  }
+
+  public get failureReason(): string | null {
+    return this._failureReason || null
+  }
+
+  public get skipReason(): string | null {
+    return this._skipReason || null
+  }
+
+  public get startedAt(): Date | null {
+    return this._status !== Status.Idle && this._status !== Status.Skipped ? this._startedAt : null
+  }
+
+  public get finishedAt(): Date | null {
+    return this._finishedAt
+  }
+
+  public get measurement(): Measurement | null {
+    return this._measurement
+  }
 
   public constructor(options?: BaseRunnerOptions) {
     super({ ignoreErrors: true, maxListeners: 0, verboseMemoryLeak: false, ...options })
@@ -80,6 +112,7 @@ export class BaseRunner<TEventMap extends BaseRunnerEvents = BaseRunnerEvents> e
       })
     } catch (error: unknown) {
       this._status = Status.Error
+      this._error = error as Error
       this.emit('error', { error: error as Error, message: 'Runner preparation failed' })
       return
     }
@@ -107,6 +140,7 @@ export class BaseRunner<TEventMap extends BaseRunnerEvents = BaseRunnerEvents> e
       if (this._timeout) clearTimeout(this._timeout)
     } catch (error: unknown) {
       this._status = Status.Error
+      this._error = error as Error
       this.emit('error', { error: error as Error })
     }
 
@@ -122,22 +156,29 @@ export class BaseRunner<TEventMap extends BaseRunnerEvents = BaseRunnerEvents> e
       this.emit('released', { measurement: releasingMeasurer.finish(), payload: { startedAt: releasingStartedAt, finishedAt: new Date() } })
     } catch (error: unknown) {
       this._status = Status.Error
+      this._error = error as Error
       this.emit('error', { error: error as Error, message: 'Release failed' })
       return
     }
 
     if (this._stoppingIsActive) {
       this._status = Status.Stopped
-      this.emit('stopped', { measurement: this._measurer.finish(), payload: { reason: this._stoppingReason, startedAt: this._startedAt, stoppedAt: new Date() } })
+      this._measurement = this._measurer.finish()
+      this._finishedAt = new Date()
+      this.emit('stopped', { measurement: this._measurement, payload: { reason: this._stoppingReason, startedAt: this._startedAt, stoppedAt: this._finishedAt } })
       return
     }
 
     if (this._failureReason) {
       this._status = Status.Failed
-      this.emit('failed', { measurement: this._measurer.finish(), payload: { reason: this._failureReason, startedAt: this._startedAt, finishedAt: new Date() } })
+      this._finishedAt = new Date()
+      this._measurement = this._measurer.finish()
+      this.emit('failed', { measurement: this._measurement, payload: { reason: this._failureReason, startedAt: this._startedAt, finishedAt: this._finishedAt } })
     } else {
       this._status = Status.Succeeded
-      this.emit('succeeded', { measurement: this._measurer.finish(), payload: { startedAt: this._startedAt, finishedAt: new Date() } })
+      this._finishedAt = new Date()
+      this._measurement = this._measurer.finish()
+      this.emit('succeeded', { measurement: this._measurement, payload: { startedAt: this._startedAt, finishedAt: this._finishedAt } })
     }
   }
 
@@ -196,7 +237,8 @@ export class BaseRunner<TEventMap extends BaseRunnerEvents = BaseRunnerEvents> e
     switch (this._status) {
       case Status.Idle:
         this._status = Status.Skipped
-        this.emit('skipped', { payload: { reason, skippedAt: new Date() } })
+        this._skipReason = reason
+        this.emit('skipped', { payload: { reason: this._skipReason, skippedAt: new Date() } })
         break
       case Status.Skipped:
         this._emitWarningOrThrow('Skip was called but runner is already skipped')

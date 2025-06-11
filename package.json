@@ -19,8 +19,8 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@universal-packages/event-emitter": "^2.0.1",
-    "@universal-packages/time-measurer": "^2.0.0"
+    "@universal-packages/event-emitter": "^2.0.2",
+    "@universal-packages/time-measurer": "^2.1.0"
   },
   "devDependencies": {
     "@trivago/prettier-plugin-sort-imports": "^5.2.2",

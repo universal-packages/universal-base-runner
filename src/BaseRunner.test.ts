@@ -50,14 +50,14 @@ class TestRunner extends BaseRunner {
   }
 
   // Expose status for testing
-  public get status(): Status {
+  public override get status(): Status {
     return (this as any)._status
   }
 }
 
 // Runner that doesn't implement internalRun to test default error
 class UnimplementedRunner extends BaseRunner {
-  public get status(): Status {
+  public override get status(): Status {
     return (this as any)._status
   }
 }
@@ -69,7 +69,7 @@ class UnstoppableRunner extends BaseRunner {
     return undefined
   }
 
-  public get status(): Status {
+  public override get status(): Status {
     return (this as any)._status
   }
 }
@@ -597,7 +597,7 @@ export async function baseRunnerTest() {
         return undefined
       }
 
-      public get status(): Status {
+      public override get status(): Status {
         return (this as any)._status
       }
 
@@ -682,4 +682,278 @@ export async function baseRunnerTest() {
   })
 
   console.log('\n✅ All BaseRunner tests completed!')
+
+  // ===========================================
+  // GETTER TESTS
+  // ===========================================
+  console.log('\n🧪 Testing BaseRunner Getters')
+  console.log('='.repeat(50))
+
+  await runTest('BaseRunner error getter should return null when no error', async () => {
+    const runner = new TestRunner()
+
+    assertEquals(runner.error, null, 'Error should be null initially')
+
+    await runner.run()
+
+    assertEquals(runner.error, null, 'Error should be null after successful run')
+  })
+
+  await runTest('BaseRunner error getter should return error after preparation failure', async () => {
+    const runner = new TestRunner()
+    runner.shouldFailInPrepare = true
+
+    await runner.run()
+
+    assert(runner.error !== null, 'Error should not be null after preparation failure')
+    assertEquals(runner.error?.message, 'Prepare failed', 'Error message should match')
+  })
+
+  await runTest('BaseRunner error getter should return error after run failure', async () => {
+    const runner = new TestRunner()
+    runner.shouldFailInRun = true
+
+    await runner.run()
+
+    assert(runner.error !== null, 'Error should not be null after run failure')
+    assertEquals(runner.error?.message, 'Run failed', 'Error message should match')
+  })
+
+  await runTest('BaseRunner error getter should return error after release failure', async () => {
+    const runner = new TestRunner()
+    runner.shouldFailInRelease = true
+
+    await runner.run()
+
+    assert(runner.error !== null, 'Error should not be null after release failure')
+    assertEquals(runner.error?.message, 'Release failed', 'Error message should match')
+  })
+
+  await runTest('BaseRunner failureReason getter should return null when no failure', async () => {
+    const runner = new TestRunner()
+
+    assertEquals(runner.failureReason, null, 'Failure reason should be null initially')
+
+    await runner.run()
+
+    assertEquals(runner.failureReason, null, 'Failure reason should be null after successful run')
+  })
+
+  await runTest('BaseRunner failureReason getter should return reason when run fails', async () => {
+    const runner = new TestRunner()
+    runner.shouldReturnFailureReason = 'Custom failure reason'
+
+    await runner.run()
+
+    assertEquals(runner.failureReason, 'Custom failure reason', 'Failure reason should match')
+    assertEquals(runner.status, Status.Failed, 'Runner should be in failed state')
+  })
+
+  await runTest('BaseRunner skipReason getter should return null when not skipped', async () => {
+    const runner = new TestRunner()
+
+    assertEquals(runner.skipReason, null, 'Skip reason should be null initially')
+
+    await runner.run()
+
+    assertEquals(runner.skipReason, null, 'Skip reason should be null after normal run')
+  })
+
+  await runTest('BaseRunner skipReason getter should return reason when skipped', async () => {
+    const runner = new TestRunner()
+
+    runner.skip('Test skip reason')
+
+    assertEquals(runner.skipReason, 'Test skip reason', 'Skip reason should match')
+    assertEquals(runner.status, Status.Skipped, 'Runner should be in skipped state')
+  })
+
+  await runTest('BaseRunner skipReason getter should return null when skipped without reason', async () => {
+    const runner = new TestRunner()
+
+    runner.skip()
+
+    assertEquals(runner.skipReason, null, 'Skip reason should be null when no reason given')
+    assertEquals(runner.status, Status.Skipped, 'Runner should be in skipped state')
+  })
+
+  await runTest('BaseRunner startedAt getter should return null when idle', async () => {
+    const runner = new TestRunner()
+
+    assertEquals(runner.startedAt, null, 'StartedAt should be null when idle')
+  })
+
+  await runTest('BaseRunner startedAt getter should return null when skipped', async () => {
+    const runner = new TestRunner()
+
+    runner.skip('Test skip')
+
+    assertEquals(runner.startedAt, null, 'StartedAt should be null when skipped')
+  })
+
+  await runTest('BaseRunner startedAt getter should return date when running', async () => {
+    const runner = new TestRunner()
+    runner.runDelay = 100
+
+    const runPromise = runner.run()
+
+    // Wait a bit for the run to start
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    assert(runner.startedAt instanceof Date, 'StartedAt should be a Date when running')
+
+    await runPromise
+
+    assert(runner.startedAt instanceof Date, 'StartedAt should still be a Date after completion')
+  })
+
+  await runTest('BaseRunner finishedAt getter should return null when not finished', async () => {
+    const runner = new TestRunner()
+
+    assertEquals(runner.finishedAt, null, 'FinishedAt should be null initially')
+
+    runner.runDelay = 100
+    const runPromise = runner.run()
+
+    // Wait a bit but not for completion
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    assertEquals(runner.finishedAt, null, 'FinishedAt should be null while running')
+
+    await runPromise
+
+    assert(runner.finishedAt instanceof Date, 'FinishedAt should be a Date after completion')
+  })
+
+  await runTest('BaseRunner finishedAt getter should return date when succeeded', async () => {
+    const runner = new TestRunner()
+
+    await runner.run()
+
+    assert(runner.finishedAt instanceof Date, 'FinishedAt should be a Date when succeeded')
+    assertEquals(runner.status, Status.Succeeded, 'Runner should be in succeeded state')
+  })
+
+  await runTest('BaseRunner finishedAt getter should return date when failed', async () => {
+    const runner = new TestRunner()
+    runner.shouldReturnFailureReason = 'Test failure'
+
+    await runner.run()
+
+    assert(runner.finishedAt instanceof Date, 'FinishedAt should be a Date when failed')
+    assertEquals(runner.status, Status.Failed, 'Runner should be in failed state')
+  })
+
+  await runTest('BaseRunner finishedAt getter should return date when stopped', async () => {
+    const runner = new TestRunner()
+    runner.runDelay = 100
+
+    const runPromise = runner.run()
+    setTimeout(() => runner.stop('Test stop'), 50)
+
+    await runPromise
+
+    assert(runner.finishedAt instanceof Date, 'FinishedAt should be a Date when stopped')
+    assertEquals(runner.status, Status.Stopped, 'Runner should be in stopped state')
+  })
+
+  await runTest('BaseRunner measurement getter should return null when not finished', async () => {
+    const runner = new TestRunner()
+
+    assertEquals(runner.measurement, null, 'Measurement should be null initially')
+
+    runner.runDelay = 100
+    const runPromise = runner.run()
+
+    // Wait a bit but not for completion
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    assertEquals(runner.measurement, null, 'Measurement should be null while running')
+
+    await runPromise
+
+    assert(runner.measurement !== null, 'Measurement should not be null after completion')
+  })
+
+  await runTest('BaseRunner measurement getter should return measurement data when succeeded', async () => {
+    const runner = new TestRunner()
+
+    await runner.run()
+
+    assert(runner.measurement !== null, 'Measurement should not be null when succeeded')
+    assert(typeof runner.measurement!.milliseconds === 'number', 'Measurement should have milliseconds as number')
+    assert(typeof runner.measurement!.seconds === 'number', 'Measurement should have seconds as number')
+    assertEquals(runner.status, Status.Succeeded, 'Runner should be in succeeded state')
+  })
+
+  await runTest('BaseRunner measurement getter should return measurement data when failed', async () => {
+    const runner = new TestRunner()
+    runner.shouldReturnFailureReason = 'Test failure'
+
+    await runner.run()
+
+    assert(runner.measurement !== null, 'Measurement should not be null when failed')
+    assert(typeof runner.measurement!.milliseconds === 'number', 'Measurement should have milliseconds as number')
+    assert(typeof runner.measurement!.seconds === 'number', 'Measurement should have seconds as number')
+    assertEquals(runner.status, Status.Failed, 'Runner should be in failed state')
+  })
+
+  await runTest('BaseRunner measurement getter should return measurement data when stopped', async () => {
+    const runner = new TestRunner()
+    runner.runDelay = 100
+
+    const runPromise = runner.run()
+    setTimeout(() => runner.stop('Test stop'), 50)
+
+    await runPromise
+
+    assert(runner.measurement !== null, 'Measurement should not be null when stopped')
+    assert(typeof runner.measurement!.milliseconds === 'number', 'Measurement should have milliseconds as number')
+    assert(typeof runner.measurement!.seconds === 'number', 'Measurement should have seconds as number')
+    assertEquals(runner.status, Status.Stopped, 'Runner should be in stopped state')
+  })
+
+  await runTest('BaseRunner startedAt and finishedAt should show proper timing', async () => {
+    const runner = new TestRunner()
+    runner.runDelay = 50
+
+    const beforeRun = new Date()
+    await runner.run()
+    const afterRun = new Date()
+
+    assert(runner.startedAt !== null, 'StartedAt should not be null')
+    assert(runner.finishedAt !== null, 'FinishedAt should not be null')
+
+    assert(runner.startedAt! >= beforeRun, 'StartedAt should be after test start')
+    assert(runner.startedAt! <= afterRun, 'StartedAt should be before test end')
+    assert(runner.finishedAt! >= beforeRun, 'FinishedAt should be after test start')
+    assert(runner.finishedAt! <= afterRun, 'FinishedAt should be before test end')
+    assert(runner.finishedAt! >= runner.startedAt!, 'FinishedAt should be after startedAt')
+  })
+
+  await runTest('BaseRunner getters should maintain consistency across lifecycle', async () => {
+    const runner = new TestRunner()
+
+    // Initial state
+    assertEquals(runner.status, Status.Idle, 'Initial status should be idle')
+    assertEquals(runner.error, null, 'Initial error should be null')
+    assertEquals(runner.failureReason, null, 'Initial failure reason should be null')
+    assertEquals(runner.skipReason, null, 'Initial skip reason should be null')
+    assertEquals(runner.startedAt, null, 'Initial startedAt should be null')
+    assertEquals(runner.finishedAt, null, 'Initial finishedAt should be null')
+    assertEquals(runner.measurement, null, 'Initial measurement should be null')
+
+    // After successful run
+    await runner.run()
+
+    assertEquals(runner.status, Status.Succeeded, 'Final status should be succeeded')
+    assertEquals(runner.error, null, 'Final error should be null')
+    assertEquals(runner.failureReason, null, 'Final failure reason should be null')
+    assertEquals(runner.skipReason, null, 'Final skip reason should be null')
+    assert(runner.startedAt instanceof Date, 'Final startedAt should be a Date')
+    assert(runner.finishedAt instanceof Date, 'Final finishedAt should be a Date')
+    assert(runner.measurement !== null, 'Final measurement should not be null')
+  })
+
+  console.log('\n✅ All BaseRunner getter tests completed!')
 }

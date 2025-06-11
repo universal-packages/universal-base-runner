@@ -89,6 +89,108 @@ The BaseRunner follows a specific state machine:
 5. **`Stopping`** - Trying to stop by running `internalStop()`
 6. **Final states**: `Succeeded`, `Failed`, `Error`, `Stopped`, or `Skipped`
 
+### Getters
+
+#### status
+
+```ts
+get status(): Status
+```
+
+Returns the current status of the runner.
+
+```ts
+const runner = new MyWorker()
+console.log(runner.status) // Status.Idle
+
+await runner.run()
+console.log(runner.status) // Status.Succeeded, Status.Failed, etc.
+```
+
+#### error
+
+```ts
+get error(): Error | null
+```
+
+Returns the error that occurred during execution, or `null` if no error occurred.
+
+```ts
+runner.on('error', () => {
+  console.log('Error occurred:', runner.error?.message)
+})
+```
+
+#### failureReason
+
+```ts
+get failureReason(): string | null
+```
+
+Returns the failure reason or `null` if the runner didn't fail.
+
+```ts
+runner.on('failed', () => {
+  console.log('Failed because:', runner.failureReason)
+})
+```
+
+#### skipReason
+
+```ts
+get skipReason(): string | null
+```
+
+Returns the reason the runner was skipped, or `null` if it wasn't skipped.
+
+```ts
+runner.skip('Not needed today')
+console.log(runner.skipReason) // "Not needed today"
+```
+
+#### startedAt
+
+```ts
+get startedAt(): Date | null
+```
+
+Returns the date when the runner started execution, or `null` if it hasn't started or was skipped.
+
+```ts
+runner.on('running', () => {
+  console.log('Started at:', runner.startedAt)
+})
+```
+
+#### finishedAt
+
+```ts
+get finishedAt(): Date | null
+```
+
+Returns the date when the runner finished execution, or `null` if it hasn't finished yet.
+
+```ts
+runner.on('succeeded', () => {
+  console.log('Finished at:', runner.finishedAt)
+  console.log('Duration:', runner.finishedAt.getTime() - runner.startedAt.getTime())
+})
+```
+
+#### measurement
+
+```ts
+get measurement(): Measurement | null
+```
+
+Returns the time measurement of the entire execution, or `null` if the runner hasn't finished yet. This includes preparation, running, and release phases.
+
+```ts
+runner.on('succeeded', () => {
+  console.log('Total execution time:', runner.measurement?.toString())
+})
+```
+
 ### Instance Methods
 
 #### run
