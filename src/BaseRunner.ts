@@ -1,7 +1,7 @@
 import { EventEmitter } from '@universal-packages/event-emitter'
 import { Measurement, TimeMeasurer } from '@universal-packages/time-measurer'
 
-import { BaseRunnerEvents, BaseRunnerOptions, Status } from './BaseRunner.types'
+import { BaseRunnerEventMap, BaseRunnerOptions, Status } from './BaseRunner.types'
 
 const STATUS_LEVEL_MAP = {
   [Status.Idle]: 0,
@@ -24,7 +24,7 @@ const LEVEL_STATUSES_MAP = {
   4: [Status.Stopped, Status.Failed, Status.Error, Status.Succeeded, Status.Skipped]
 }
 
-export class BaseRunner<TEventMap extends BaseRunnerEvents = BaseRunnerEvents> extends EventEmitter<TEventMap> {
+export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMap> extends EventEmitter<TEventMap> {
   public override readonly options: BaseRunnerOptions
 
   private _status: Status = Status.Idle
@@ -34,7 +34,7 @@ export class BaseRunner<TEventMap extends BaseRunnerEvents = BaseRunnerEvents> e
   private _stoppingReason?: string
   private _markedAsStopping: boolean = false
   private _stoppingIsActive: boolean = false
-  private _failureReason?: string
+  private _failureReason?: string | Error
   private _runHasFinished: boolean = false
   private _error?: Error
   private _skipReason?: string
@@ -49,7 +49,7 @@ export class BaseRunner<TEventMap extends BaseRunnerEvents = BaseRunnerEvents> e
     return this._error || null
   }
 
-  public get failureReason(): string | null {
+  public get failureReason(): string | Error | null {
     return this._failureReason || null
   }
 
@@ -113,7 +113,7 @@ export class BaseRunner<TEventMap extends BaseRunnerEvents = BaseRunnerEvents> e
     } catch (error: unknown) {
       this._status = Status.Error
       this._error = error as Error
-      this.emit('error', { error: error as Error, message: 'Runner preparation failed' })
+      this.emit('error' as any, { error: error as Error, message: 'Runner preparation failed' })
       return
     }
 
@@ -125,7 +125,7 @@ export class BaseRunner<TEventMap extends BaseRunnerEvents = BaseRunnerEvents> e
 
       if (this.options.timeout) {
         this._timeout = setTimeout(() => {
-          this.emit('timed-out', { message: 'Timeout', payload: { timeout: this.options.timeout } })
+          this.emit('timed-out', { message: 'Timeout', payload: { startedAt: this._startedAt, timedOutAt: new Date() } })
           this.stop('Runner timed out')
         }, this.options.timeout)
       }
@@ -141,7 +141,7 @@ export class BaseRunner<TEventMap extends BaseRunnerEvents = BaseRunnerEvents> e
     } catch (error: unknown) {
       this._status = Status.Error
       this._error = error as Error
-      this.emit('error', { error: error as Error })
+      this.emit('error' as any, { error: error as Error, message: 'Run failed' })
     }
 
     try {
@@ -157,7 +157,7 @@ export class BaseRunner<TEventMap extends BaseRunnerEvents = BaseRunnerEvents> e
     } catch (error: unknown) {
       this._status = Status.Error
       this._error = error as Error
-      this.emit('error', { error: error as Error, message: 'Release failed' })
+      this.emit('error' as any, { error: error as Error, message: 'Release failed' })
       return
     }
 
@@ -258,7 +258,7 @@ export class BaseRunner<TEventMap extends BaseRunnerEvents = BaseRunnerEvents> e
   public async waitForStatusLevel(status: Status): Promise<void> {
     if (STATUS_LEVEL_MAP[status] <= STATUS_LEVEL_MAP[this._status]) return
 
-    await Promise.any(LEVEL_STATUSES_MAP[STATUS_LEVEL_MAP[status]].map((status: Status) => this.waitFor(status)))
+    await Promise.any(LEVEL_STATUSES_MAP[STATUS_LEVEL_MAP[status]].map((status: Status) => this.waitFor(status as any)))
   }
 
   protected async internalPrepare(): Promise<void> {}
@@ -272,7 +272,7 @@ export class BaseRunner<TEventMap extends BaseRunnerEvents = BaseRunnerEvents> e
 
   private _emitWarningOrThrow(message: string): void {
     if (this.hasListeners('warning')) {
-      this.emit('warning', { message })
+      this.emit('warning' as any, { message })
     } else {
       throw new Error(message)
     }
@@ -306,7 +306,7 @@ export class BaseRunner<TEventMap extends BaseRunnerEvents = BaseRunnerEvents> e
       this._status = Status.Stopping
       this._stoppingIsActive = true
     } catch (error: unknown) {
-      this.emit('error', { error: error as Error, message: 'Attempt to stop runner failed' })
+      this.emit('error' as any, { error: error as Error, message: 'Attempt to stop runner failed' })
     }
   }
 }

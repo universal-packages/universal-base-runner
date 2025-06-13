@@ -1,4 +1,4 @@
-import { EventEmitterOptions } from '@universal-packages/event-emitter'
+import { EventEmitterOptions, InternalEventMap } from '@universal-packages/event-emitter'
 
 export interface BaseRunnerOptions extends EventEmitterOptions {
   /**
@@ -21,17 +21,17 @@ export enum Status {
   Skipped = 'skipped'
 }
 
-export interface BaseRunnerEvents {
-  [Status.Preparing]: { startedAt: Date }
+export interface BaseRunnerEventMap extends InternalEventMap {
+  preparing: { startedAt: Date }
   prepared: { startedAt: Date; finishedAt: Date }
-  [Status.Running]: { startedAt: Date }
-  [Status.Releasing]: { startedAt: Date }
-  released: { startedAt: Date; finishedAt: Date }
-  [Status.Succeeded]: { startedAt: Date; finishedAt: Date }
+  running: { startedAt: Date }
   'timed-out': { startedAt: Date; timedOutAt: Date }
-  [Status.Failed]: { reason?: string; startedAt: Date; finishedAt: Date }
-  [Status.Stopping]: { reason?: string; startedAt: Date; stoppingAt: Date }
-  [Status.Stopped]: { reason?: string; startedAt: Date; stoppedAt: Date }
-  [Status.Skipped]: { reason?: string; skippedAt: Date }
-  warning: {}
+  releasing: { startedAt: Date }
+  released: { startedAt: Date; finishedAt: Date }
+  stopping: { startedAt: Date; stoppingAt: Date; reason?: string }
+  stopped: { reason?: string; startedAt: Date; stoppedAt: Date }
+  succeeded: { startedAt: Date; finishedAt: Date }
+  failed: { reason: string | Error; startedAt: Date; finishedAt: Date }
+  skipped: { reason?: string; skippedAt: Date }
+  warning: any
 }

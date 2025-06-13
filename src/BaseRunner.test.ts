@@ -267,7 +267,7 @@ export async function baseRunnerTest() {
     const events: string[] = []
 
     let skippedEvent: any = null
-    runner.on('starting', () => events.push('starting'))
+    runner.on('preparing', () => events.push('preparing'))
     runner.on('prepared', () => events.push('prepared'))
     runner.on('running', () => events.push('running'))
     runner.on('stopping', () => events.push('stopping'))
