@@ -13,7 +13,8 @@ const STATUS_LEVEL_MAP = {
   [Status.Failed]: 4,
   [Status.Error]: 4,
   [Status.Stopped]: 4,
-  [Status.Skipped]: 4
+  [Status.Skipped]: 4,
+  [Status.TimedOut]: 4
 }
 
 const LEVEL_STATUSES_MAP = {
@@ -21,7 +22,7 @@ const LEVEL_STATUSES_MAP = {
   1: [Status.Preparing],
   2: [Status.Running, Status.Stopping],
   3: [Status.Releasing],
-  4: [Status.Stopped, Status.Failed, Status.Error, Status.Succeeded, Status.Skipped]
+  4: [Status.Stopped, Status.Failed, Status.Error, Status.Succeeded, Status.Skipped, Status.TimedOut]
 }
 
 export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMap> extends EventEmitter<TEventMap> {
@@ -40,6 +41,7 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
   private _skipReason?: string
   private _finishedAt: Date | null = null
   private _measurement: Measurement | null = null
+  private _timedOut: boolean = false
 
   public get status(): Status {
     return this._status
@@ -125,7 +127,7 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
 
       if (this.options.timeout) {
         this._timeout = setTimeout(() => {
-          this.emit('timed-out', { message: 'Timeout', payload: { startedAt: this._startedAt, timedOutAt: new Date() } })
+          this._timedOut = true
           this.stop('Runner timed out')
         }, this.options.timeout)
       }
@@ -162,10 +164,18 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
     }
 
     if (this._stoppingIsActive) {
-      this._status = Status.Stopped
-      this._measurement = this._measurer.finish()
-      this._finishedAt = new Date()
-      this.emit('stopped', { measurement: this._measurement, payload: { reason: this._stoppingReason, startedAt: this._startedAt, stoppedAt: this._finishedAt } })
+      if (this._timedOut) {
+        this._status = Status.TimedOut
+        this._finishedAt = new Date()
+        this._measurement = this._measurer.finish()
+        this.emit('timed-out', { message: 'Timeout', payload: { startedAt: this._startedAt, timedOutAt: new Date() } })
+      } else {
+        this._status = Status.Stopped
+        this._measurement = this._measurer.finish()
+        this._finishedAt = new Date()
+        this.emit('stopped', { measurement: this._measurement, payload: { reason: this._stoppingReason, startedAt: this._startedAt, stoppedAt: this._finishedAt } })
+      }
+
       return
     }
 
@@ -206,6 +216,7 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
       case Status.Error:
       case Status.Succeeded:
       case Status.Stopped:
+      case Status.TimedOut:
         this._emitWarningOrThrow('Stop was called but runner has already finished')
         return
       case Status.Running:
@@ -225,7 +236,7 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
       this._markedAsStopping = true
     }
 
-    await this.waitForStatusLevel(Status.Stopped)
+    await this.waitForStatusLevel(this._timedOut ? Status.TimedOut : Status.Stopped)
   }
 
   /**

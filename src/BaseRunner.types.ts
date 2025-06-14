@@ -18,18 +18,19 @@ export enum Status {
   Failed = 'failed',
   Stopping = 'stopping',
   Stopped = 'stopped',
-  Skipped = 'skipped'
+  Skipped = 'skipped',
+  TimedOut = 'timed-out'
 }
 
 export interface BaseRunnerEventMap extends InternalEventMap {
   preparing: { startedAt: Date }
   prepared: { startedAt: Date; finishedAt: Date }
   running: { startedAt: Date }
-  'timed-out': { startedAt: Date; timedOutAt: Date }
   releasing: { startedAt: Date }
   released: { startedAt: Date; finishedAt: Date }
   stopping: { startedAt: Date; stoppingAt: Date; reason?: string }
   stopped: { reason?: string; startedAt: Date; stoppedAt: Date }
+  'timed-out': { startedAt: Date; timedOutAt: Date }
   succeeded: { startedAt: Date; finishedAt: Date }
   failed: { reason: string | Error; startedAt: Date; finishedAt: Date }
   skipped: { reason?: string; skippedAt: Date }

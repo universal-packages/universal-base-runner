@@ -59,7 +59,14 @@ worker.on('failed', (event) => {
   console.log('Worker failed:', event.payload.reason)
 })
 
+worker.on('timed-out', (event) => {
+  console.log('Worker timed out at:', event.payload.timedOutAt)
+})
+
 await worker.run()
+
+// Check final status
+console.log('Final status:', worker.status) // 'succeeded', 'failed', 'timed-out', etc.
 ```
 
 ### Constructor <small><small>`constructor`</small></small>
@@ -87,7 +94,7 @@ The BaseRunner follows a specific state machine:
 3. **`Running`** - Running `internalRun()`
 4. **`Releasing`** - Running `internalRelease()`
 5. **`Stopping`** - Trying to stop by running `internalStop()`
-6. **Final states**: `Succeeded`, `Failed`, `Error`, `Stopped`, or `Skipped`
+6. **Final states**: `Succeeded`, `Failed`, `Error`, `Stopped`, `TimedOut`, or `Skipped`
 
 ### Getters
 
@@ -366,6 +373,11 @@ worker.on('failed', (event) => {
 worker.on('stopped', (event) => {
   console.log('Stop reason:', event.payload.reason)
   console.log('Stopped at:', event.payload.stoppedAt)
+})
+
+worker.on('timed-out', (event) => {
+  console.log('Runner timed out at:', event.payload.timedOutAt)
+  // Note: Final status will be TimedOut, not Stopped
 })
 ```
 

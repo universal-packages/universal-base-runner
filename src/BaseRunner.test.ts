@@ -207,21 +207,19 @@ export async function baseRunnerTest() {
     runner.on('stopping', () => events.push('stopping'))
     runner.on('releasing', () => events.push('releasing'))
     runner.on('released', () => events.push('released'))
-    runner.on('stopped', () => events.push('stopped'))
 
     await runner.run()
 
-    assertEquals(runner.status, Status.Stopped, 'Runner should be in stopped state')
+    assertEquals(runner.status, Status.TimedOut, 'Runner should be in timed out state')
     assert(timedOutEvent !== null, 'Timed-out event should have been emitted')
-    assertEquals(events.length, 8, 'All lifecycle events should have been emitted')
+    assertEquals(events.length, 7, 'All lifecycle events should have been emitted')
     assertEquals(events[0], 'preparing', 'First event should be preparing')
     assertEquals(events[1], 'prepared', 'Second event should be prepared')
     assertEquals(events[2], 'running', 'Third event should be running')
-    assertEquals(events[3], 'timed-out', 'Fourth event should be timed-out')
-    assertEquals(events[4], 'stopping', 'Fifth event should be stopping')
-    assertEquals(events[5], 'releasing', 'Sixth event should be releasing')
-    assertEquals(events[6], 'released', 'Seventh event should be released')
-    assertEquals(events[7], 'stopped', 'Last event should be stopped')
+    assertEquals(events[3], 'stopping', 'Fifth event should be stopping')
+    assertEquals(events[4], 'releasing', 'Sixth event should be releasing')
+    assertEquals(events[5], 'released', 'Seventh event should be released')
+    assertEquals(events[6], 'timed-out', 'Last event should be timed-out')
   })
 
   await runTest('BaseRunner should handle stop request', async () => {
@@ -487,6 +485,22 @@ export async function baseRunnerTest() {
 
     await runner.run()
     await runner.stop('Try to stop finished')
+
+    assert(warningEvent !== null, 'Warning event should have been emitted')
+    assertEquals(warningEvent.message, 'Stop was called but runner has already finished', 'Warning message should match')
+  })
+
+  await runTest('BaseRunner should emit warning when trying to stop timed out runner', async () => {
+    const runner = new TestRunner({ timeout: 50 })
+    runner.runDelay = 100 // Longer than timeout
+
+    let warningEvent: any = null
+    runner.on('warning', (event) => (warningEvent = event))
+
+    await runner.run()
+    assertEquals(runner.status, Status.TimedOut, 'Runner should be in timed out state')
+
+    await runner.stop('Try to stop timed out')
 
     assert(warningEvent !== null, 'Warning event should have been emitted')
     assertEquals(warningEvent.message, 'Stop was called but runner has already finished', 'Warning message should match')
@@ -911,6 +925,28 @@ export async function baseRunnerTest() {
     assert(typeof runner.measurement!.milliseconds === 'number', 'Measurement should have milliseconds as number')
     assert(typeof runner.measurement!.seconds === 'number', 'Measurement should have seconds as number')
     assertEquals(runner.status, Status.Stopped, 'Runner should be in stopped state')
+  })
+
+  await runTest('BaseRunner measurement getter should return measurement data when timed out', async () => {
+    const runner = new TestRunner({ timeout: 50 })
+    runner.runDelay = 100 // Longer than timeout
+
+    await runner.run()
+
+    assert(runner.measurement !== null, 'Measurement should not be null when timed out')
+    assert(typeof runner.measurement!.milliseconds === 'number', 'Measurement should have milliseconds as number')
+    assert(typeof runner.measurement!.seconds === 'number', 'Measurement should have seconds as number')
+    assertEquals(runner.status, Status.TimedOut, 'Runner should be in timed out state')
+  })
+
+  await runTest('BaseRunner finishedAt getter should return date when timed out', async () => {
+    const runner = new TestRunner({ timeout: 50 })
+    runner.runDelay = 100 // Longer than timeout
+
+    await runner.run()
+
+    assert(runner.finishedAt instanceof Date, 'FinishedAt should be a Date when timed out')
+    assertEquals(runner.status, Status.TimedOut, 'Runner should be in timed out state')
   })
 
   await runTest('BaseRunner startedAt and finishedAt should show proper timing', async () => {
