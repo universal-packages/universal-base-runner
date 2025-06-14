@@ -29,13 +29,13 @@ class MyWorker extends BaseRunner {
     console.log('Setting up worker...')
   }
 
-  protected async internalRun(): Promise<string | undefined> {
+  protected async internalRun(): Promise<string | Error | void> {
     // Do the actual work
     console.log('Working...')
     await new Promise((resolve) => setTimeout(resolve, 1000))
 
-    // Return undefined for success, or a string for failure reason
-    return undefined
+    // Return for success, or a string for failure reason, or an error for failure
+    return
   }
 
   protected async internalRelease(): Promise<void> {

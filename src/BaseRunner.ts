@@ -35,7 +35,7 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
   private _stoppingReason?: string
   private _markedAsStopping: boolean = false
   private _stoppingIsActive: boolean = false
-  private _failureReason?: string | Error
+  private _failureReason?: string | Error | void
   private _runHasFinished: boolean = false
   private _error?: Error
   private _skipReason?: string
@@ -273,7 +273,7 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
   }
 
   protected async internalPrepare(): Promise<void> {}
-  protected async internalRun(): Promise<string | undefined> {
+  protected async internalRun(): Promise<string | Error | void> {
     throw new Error('internalRun is not implemented, this runner will not run')
   }
   protected async internalRelease(): Promise<void> {}
