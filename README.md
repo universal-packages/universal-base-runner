@@ -198,6 +198,104 @@ runner.on('succeeded', () => {
 })
 ```
 
+The BaseRunner provides boolean getter methods for easy status checking:
+
+#### isIdle
+
+```ts
+get isIdle(): boolean
+```
+
+Returns `true` if the runner is in the `Idle` state.
+
+#### isPreparing
+
+```ts
+get isPreparing(): boolean
+```
+
+Returns `true` if the runner is in the `Preparing` state.
+
+#### isRunning
+
+```ts
+get isRunning(): boolean
+```
+
+Returns `true` if the runner is in the `Running` state.
+
+#### isStopping
+
+```ts
+get isStopping(): boolean
+```
+
+Returns `true` if the runner is in the `Stopping` state.
+
+#### isReleasing
+
+```ts
+get isReleasing(): boolean
+```
+
+Returns `true` if the runner is in the `Releasing` state.
+
+#### isStopped
+
+```ts
+get isStopped(): boolean
+```
+
+Returns `true` if the runner is in the `Stopped` state.
+
+#### isFailed
+
+```ts
+get isFailed(): boolean
+```
+
+Returns `true` if the runner is in the `Failed` state.
+
+#### isSucceeded
+
+```ts
+get isSucceeded(): boolean
+```
+
+Returns `true` if the runner is in the `Succeeded` state.
+
+#### isTimedOut
+
+```ts
+get isTimedOut(): boolean
+```
+
+Returns `true` if the runner is in the `TimedOut` state.
+
+#### isSkipped
+
+```ts
+get isSkipped(): boolean
+```
+
+Returns `true` if the runner is in the `Skipped` state.
+
+#### isActive
+
+```ts
+get isActive(): boolean
+```
+
+Returns `true` if the runner is currently active (preparing, running, or stopping).
+
+#### isFinished
+
+```ts
+get isFinished(): boolean
+```
+
+Returns `true` if the runner has reached a terminal state (succeeded, failed, stopped, timed out, skipped, or error).
+
 ### Instance Methods
 
 #### run
@@ -243,6 +341,35 @@ Skips the runner execution. Can only be called when the runner is in `Idle` stat
 const runner = new MyWorker()
 runner.skip('Not needed')
 // Runner will be in 'Skipped' state
+```
+
+#### fail
+
+```ts
+fail(reason: string | Error): void
+```
+
+Marks the runner as failed without going through the normal lifecycle. Can only be called when the runner is in `Idle` state. This is useful for pre-execution validation failures.
+
+```ts
+const runner = new MyWorker()
+
+// Check some precondition
+if (!isConfigurationValid()) {
+  runner.fail('Invalid configuration')
+  // Runner will be in 'Failed' state immediately
+  return
+}
+
+// Or fail with an Error object
+try {
+  validateInput()
+} catch (error) {
+  runner.fail(error)
+  return
+}
+
+await runner.run()
 ```
 
 #### waitForStatusLevel
@@ -346,7 +473,7 @@ The BaseRunner emits events for each phase of the lifecycle:
 #### Final Status Events
 
 - **`succeeded`** - Runner completed successfully
-- **`failed`** - Runner failed (returned failure reason)
+- **`failed`** - Runner failed (returned failure reason or was marked as failed using `fail()`)
 - **`stopped`** - Runner was stopped
 - **`timed-out`** - Runner exceeded timeout
 - **`skipped`** - Runner was skipped

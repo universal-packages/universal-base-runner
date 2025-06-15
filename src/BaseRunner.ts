@@ -309,6 +309,30 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
   }
 
   /**
+   * Marks the runner as failed without going through the normal lifecycle.
+   * @param {string | Error} reason - The reason for the failure
+   * @returns {void}
+   */
+  public fail(reason: string | Error): void {
+    switch (this._status) {
+      case Status.Idle:
+        this._status = Status.Failed
+        this._failureReason = reason
+        this._startedAt = new Date()
+        this._finishedAt = new Date()
+        this._measurement = this._measurer.finish()
+        this.emit('failed', { measurement: this._measurement, payload: { reason: this._failureReason, startedAt: this._startedAt, finishedAt: this._finishedAt } })
+        break
+      case Status.Failed:
+        this._emitWarningOrThrow('Fail was called but runner is already failed')
+        return
+      default:
+        this._emitWarningOrThrow('Fail was called but runner can only be failed when idle')
+        return
+    }
+  }
+
+  /**
    * Waits for the runner to reach a certain status level for example if you want to wait for the runner to be succeeded,
    * you can use this method to wait for that status and it will still resolve if the runner fails since it will never succeed.
    * @param {Status} status - The status to wait for

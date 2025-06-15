@@ -277,6 +277,52 @@ export async function baseRunnerTest() {
     assertEquals(events[0], 'skipped', 'Last event should be skipped')
   })
 
+  await runTest('BaseRunner should handle fail', async () => {
+    const runner = new TestRunner()
+    const events: string[] = []
+
+    let failedEvent: any = null
+    runner.on('preparing', () => events.push('preparing'))
+    runner.on('prepared', () => events.push('prepared'))
+    runner.on('running', () => events.push('running'))
+    runner.on('stopping', () => events.push('stopping'))
+    runner.on('releasing', () => events.push('releasing'))
+    runner.on('released', () => events.push('released'))
+    runner.on('stopped', () => events.push('stopped'))
+    runner.on('failed', (event) => {
+      failedEvent = event
+      events.push('failed')
+    })
+
+    runner.fail('Test failure')
+
+    assertEquals(runner.status, Status.Failed, 'Runner should be in failed state')
+    assert(failedEvent !== null, 'Failed event should have been emitted')
+    assertEquals(failedEvent.payload.reason, 'Test failure', 'Failure reason should match')
+    assertEquals(events.length, 1, 'All lifecycle events should have been emitted')
+    assertEquals(events[0], 'failed', 'Last event should be failed')
+    assert(runner.startedAt instanceof Date, 'StartedAt should be a Date')
+    assert(runner.finishedAt instanceof Date, 'FinishedAt should be a Date')
+    assert(runner.measurement !== null, 'Measurement should not be null')
+  })
+
+  await runTest('BaseRunner should handle fail with Error object', async () => {
+    const runner = new TestRunner()
+    const testError = new Error('Test error message')
+
+    let failedEvent: any = null
+    runner.on('failed', (event) => {
+      failedEvent = event
+    })
+
+    runner.fail(testError)
+
+    assertEquals(runner.status, Status.Failed, 'Runner should be in failed state')
+    assert(failedEvent !== null, 'Failed event should have been emitted')
+    assertEquals(failedEvent.payload.reason, testError, 'Failure reason should match the error object')
+    assertEquals(runner.failureReason, testError, 'Failure reason getter should return the error object')
+  })
+
   await runTest('BaseRunner should not allow multiple runs', async () => {
     const runner = new TestRunner()
 
@@ -313,6 +359,45 @@ export async function baseRunnerTest() {
 
     assert(warningEvent !== null, 'Warning event should have been emitted')
     assertEquals(warningEvent.message, 'Skip was called but runner can only be skipped when idle', 'Warning message should match')
+  })
+
+  await runTest('BaseRunner should not allow fail after running', async () => {
+    const runner = new TestRunner()
+
+    let warningEvent: any = null
+    runner.on('warning', (event) => (warningEvent = event))
+
+    await runner.run()
+    runner.fail('Too late')
+
+    assert(warningEvent !== null, 'Warning event should have been emitted')
+    assertEquals(warningEvent.message, 'Fail was called but runner can only be failed when idle', 'Warning message should match')
+  })
+
+  await runTest('BaseRunner should not allow fail when already failed', async () => {
+    const runner = new TestRunner()
+
+    let warningEvent: any = null
+    runner.on('warning', (event) => (warningEvent = event))
+
+    runner.fail('First failure')
+    runner.fail('Second failure')
+
+    assert(warningEvent !== null, 'Warning event should have been emitted')
+    assertEquals(warningEvent.message, 'Fail was called but runner is already failed', 'Warning message should match')
+  })
+
+  await runTest('BaseRunner should not allow fail when skipped', async () => {
+    const runner = new TestRunner()
+
+    let warningEvent: any = null
+    runner.on('warning', (event) => (warningEvent = event))
+
+    runner.skip('Skipped first')
+    runner.fail('Try to fail skipped')
+
+    assert(warningEvent !== null, 'Warning event should have been emitted')
+    assertEquals(warningEvent.message, 'Fail was called but runner can only be failed when idle', 'Warning message should match')
   })
 
   await runTest('BaseRunner should wait for status level', async () => {
@@ -568,6 +653,23 @@ export async function baseRunnerTest() {
     } catch (error: any) {
       errorThrown = true
       assertEquals(error.message, 'Run was called but runner has already finished', 'Error message should match')
+    }
+
+    assert(errorThrown, 'Error should have been thrown')
+  })
+
+  await runTest('BaseRunner should throw error when fail called with no warning listeners', async () => {
+    const runner = new TestRunner()
+
+    // Don't add warning listener
+    runner.fail('First failure')
+
+    let errorThrown = false
+    try {
+      runner.fail('Second failure') // Second fail should throw
+    } catch (error: any) {
+      errorThrown = true
+      assertEquals(error.message, 'Fail was called but runner is already failed', 'Error message should match')
     }
 
     assert(errorThrown, 'Error should have been thrown')
