@@ -71,6 +71,54 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
     return this._measurement
   }
 
+  public get isIdle(): boolean {
+    return this._status === Status.Idle
+  }
+
+  public get isPreparing(): boolean {
+    return this._status === Status.Preparing
+  }
+
+  public get isRunning(): boolean {
+    return this._status === Status.Running
+  }
+
+  public get isStopping(): boolean {
+    return this._status === Status.Stopping
+  }
+
+  public get isReleasing(): boolean {
+    return this._status === Status.Releasing
+  }
+
+  public get isStopped(): boolean {
+    return this._status === Status.Stopped
+  }
+
+  public get isFailed(): boolean {
+    return this._status === Status.Failed
+  }
+
+  public get isSucceeded(): boolean {
+    return this._status === Status.Succeeded
+  }
+
+  public get isTimedOut(): boolean {
+    return this._status === Status.TimedOut
+  }
+
+  public get isSkipped(): boolean {
+    return this._status === Status.Skipped
+  }
+
+  public get isActive(): boolean {
+    return STATUS_LEVEL_MAP[this._status] > STATUS_LEVEL_MAP[Status.Idle] && STATUS_LEVEL_MAP[this._status] < STATUS_LEVEL_MAP[Status.Succeeded]
+  }
+
+  public get isFinished(): boolean {
+    return STATUS_LEVEL_MAP[this._status] >= STATUS_LEVEL_MAP[Status.Succeeded]
+  }
+
   public constructor(options?: BaseRunnerOptions) {
     super({ ignoreErrors: true, maxListeners: 0, verboseMemoryLeak: false, ...options })
     this.options = { ...options }

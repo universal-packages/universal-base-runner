@@ -48,19 +48,10 @@ class TestRunner extends BaseRunner {
     }
     this.runWasInterrupted = true
   }
-
-  // Expose status for testing
-  public override get status(): Status {
-    return (this as any)._status
-  }
 }
 
 // Runner that doesn't implement internalRun to test default error
-class UnimplementedRunner extends BaseRunner {
-  public override get status(): Status {
-    return (this as any)._status
-  }
-}
+class UnimplementedRunner extends BaseRunner {}
 
 // Runner that doesn't implement internalStop to test default error
 class UnstoppableRunner extends BaseRunner {
@@ -611,10 +602,6 @@ export async function baseRunnerTest() {
         return undefined
       }
 
-      public override get status(): Status {
-        return (this as any)._status
-      }
-
       public get runHasFinished(): boolean {
         return this._forceRunFinished || (this as any)._runHasFinished
       }
@@ -992,4 +979,394 @@ export async function baseRunnerTest() {
   })
 
   console.log('\n✅ All BaseRunner getter tests completed!')
+
+  console.log('\n🧪 Testing BaseRunner Boolean Getters')
+  console.log('='.repeat(50))
+
+  await runTest('BaseRunner isIdle getter should return true when idle', async () => {
+    const runner = new TestRunner()
+
+    assertEquals(runner.isIdle, true, 'isIdle should be true initially')
+    assertEquals(runner.status, Status.Idle, 'Status should be idle')
+  })
+
+  await runTest('BaseRunner isIdle getter should return false when not idle', async () => {
+    const runner = new TestRunner()
+
+    await runner.run()
+
+    assertEquals(runner.isIdle, false, 'isIdle should be false after running')
+    assertEquals(runner.status, Status.Succeeded, 'Status should be succeeded')
+  })
+
+  await runTest('BaseRunner isPreparing getter should return true when preparing', async () => {
+    const runner = new TestRunner()
+    runner.prepareDelay = 100
+
+    const runPromise = runner.run()
+
+    // Wait a bit for preparing to start
+    await new Promise((resolve) => setTimeout(resolve, 30))
+
+    assertEquals(runner.isPreparing, true, 'isPreparing should be true during preparation')
+    assertEquals(runner.status, Status.Preparing, 'Status should be preparing')
+
+    await runPromise
+  })
+
+  await runTest('BaseRunner isPreparing getter should return false when not preparing', async () => {
+    const runner = new TestRunner()
+
+    assertEquals(runner.isPreparing, false, 'isPreparing should be false when idle')
+
+    await runner.run()
+
+    assertEquals(runner.isPreparing, false, 'isPreparing should be false when finished')
+  })
+
+  await runTest('BaseRunner isRunning getter should return true when running', async () => {
+    const runner = new TestRunner()
+    runner.runDelay = 100
+
+    const runPromise = runner.run()
+
+    // Wait for running phase to start
+    await new Promise((resolve) => setTimeout(resolve, 30))
+
+    assertEquals(runner.isRunning, true, 'isRunning should be true during run phase')
+    assertEquals(runner.status, Status.Running, 'Status should be running')
+
+    await runPromise
+  })
+
+  await runTest('BaseRunner isRunning getter should return false when not running', async () => {
+    const runner = new TestRunner()
+
+    assertEquals(runner.isRunning, false, 'isRunning should be false when idle')
+
+    await runner.run()
+
+    assertEquals(runner.isRunning, false, 'isRunning should be false when finished')
+  })
+
+  await runTest('BaseRunner isStopping getter should return true when stopping', async () => {
+    const runner = new TestRunner()
+    runner.runDelay = 200
+
+    const runPromise = runner.run()
+
+    // Stop the runner and check status during stopping
+    setTimeout(async () => {
+      await runner.stop('Test stop')
+    }, 50)
+
+    // Wait for stopping phase
+    await new Promise((resolve) => setTimeout(resolve, 80))
+
+    if (runner.status === Status.Stopping) {
+      assertEquals(runner.isStopping, true, 'isStopping should be true during stopping phase')
+    }
+
+    await runPromise
+  })
+
+  await runTest('BaseRunner isStopping getter should return false when not stopping', async () => {
+    const runner = new TestRunner()
+
+    assertEquals(runner.isStopping, false, 'isStopping should be false when idle')
+
+    await runner.run()
+
+    assertEquals(runner.isStopping, false, 'isStopping should be false when finished')
+  })
+
+  await runTest('BaseRunner isReleasing getter should return true when releasing', async () => {
+    const runner = new TestRunner()
+    runner.releaseDelay = 100
+
+    const runPromise = runner.run()
+
+    // Wait for releasing phase to start
+    await new Promise((resolve) => setTimeout(resolve, 30))
+
+    if (runner.status === Status.Releasing) {
+      assertEquals(runner.isReleasing, true, 'isReleasing should be true during release phase')
+    }
+
+    await runPromise
+  })
+
+  await runTest('BaseRunner isReleasing getter should return false when not releasing', async () => {
+    const runner = new TestRunner()
+
+    assertEquals(runner.isReleasing, false, 'isReleasing should be false when idle')
+
+    await runner.run()
+
+    assertEquals(runner.isReleasing, false, 'isReleasing should be false when finished')
+  })
+
+  await runTest('BaseRunner isStopped getter should return true when stopped', async () => {
+    const runner = new TestRunner()
+    runner.runDelay = 100
+
+    const runPromise = runner.run()
+    setTimeout(() => runner.stop('Test stop'), 50)
+
+    await runPromise
+
+    assertEquals(runner.isStopped, true, 'isStopped should be true when stopped')
+    assertEquals(runner.status, Status.Stopped, 'Status should be stopped')
+  })
+
+  await runTest('BaseRunner isStopped getter should return false when not stopped', async () => {
+    const runner = new TestRunner()
+
+    assertEquals(runner.isStopped, false, 'isStopped should be false when idle')
+
+    await runner.run()
+
+    assertEquals(runner.isStopped, false, 'isStopped should be false when succeeded')
+  })
+
+  await runTest('BaseRunner isFailed getter should return true when failed', async () => {
+    const runner = new TestRunner()
+    runner.shouldReturnFailureReason = 'Test failure'
+
+    await runner.run()
+
+    assertEquals(runner.isFailed, true, 'isFailed should be true when failed')
+    assertEquals(runner.status, Status.Failed, 'Status should be failed')
+  })
+
+  await runTest('BaseRunner isFailed getter should return false when not failed', async () => {
+    const runner = new TestRunner()
+
+    assertEquals(runner.isFailed, false, 'isFailed should be false when idle')
+
+    await runner.run()
+
+    assertEquals(runner.isFailed, false, 'isFailed should be false when succeeded')
+  })
+
+  await runTest('BaseRunner isSucceeded getter should return true when succeeded', async () => {
+    const runner = new TestRunner()
+
+    await runner.run()
+
+    assertEquals(runner.isSucceeded, true, 'isSucceeded should be true when succeeded')
+    assertEquals(runner.status, Status.Succeeded, 'Status should be succeeded')
+  })
+
+  await runTest('BaseRunner isSucceeded getter should return false when not succeeded', async () => {
+    const runner = new TestRunner()
+
+    assertEquals(runner.isSucceeded, false, 'isSucceeded should be false when idle')
+
+    runner.shouldReturnFailureReason = 'Test failure'
+    await runner.run()
+
+    assertEquals(runner.isSucceeded, false, 'isSucceeded should be false when failed')
+  })
+
+  await runTest('BaseRunner isTimedOut getter should return true when timed out', async () => {
+    const runner = new TestRunner({ timeout: 50 })
+    runner.runDelay = 100 // Longer than timeout
+
+    await runner.run()
+
+    assertEquals(runner.isTimedOut, true, 'isTimedOut should be true when timed out')
+    assertEquals(runner.status, Status.TimedOut, 'Status should be timed out')
+  })
+
+  await runTest('BaseRunner isTimedOut getter should return false when not timed out', async () => {
+    const runner = new TestRunner()
+
+    assertEquals(runner.isTimedOut, false, 'isTimedOut should be false when idle')
+
+    await runner.run()
+
+    assertEquals(runner.isTimedOut, false, 'isTimedOut should be false when succeeded')
+  })
+
+  await runTest('BaseRunner isSkipped getter should return true when skipped', async () => {
+    const runner = new TestRunner()
+
+    runner.skip('Test skip')
+
+    assertEquals(runner.isSkipped, true, 'isSkipped should be true when skipped')
+    assertEquals(runner.status, Status.Skipped, 'Status should be skipped')
+  })
+
+  await runTest('BaseRunner isSkipped getter should return false when not skipped', async () => {
+    const runner = new TestRunner()
+
+    assertEquals(runner.isSkipped, false, 'isSkipped should be false when idle')
+
+    await runner.run()
+
+    assertEquals(runner.isSkipped, false, 'isSkipped should be false when succeeded')
+  })
+
+  await runTest('BaseRunner isActive getter should return false when idle', async () => {
+    const runner = new TestRunner()
+
+    assertEquals(runner.isActive, false, 'isActive should be false when idle')
+    assertEquals(runner.status, Status.Idle, 'Status should be idle')
+  })
+
+  await runTest('BaseRunner isActive getter should return true during lifecycle phases', async () => {
+    const runner = new TestRunner()
+    runner.prepareDelay = 50
+    runner.runDelay = 50
+    runner.releaseDelay = 50
+
+    const runPromise = runner.run()
+
+    // Check during preparing
+    await new Promise((resolve) => setTimeout(resolve, 25))
+    if (runner.status === Status.Preparing) {
+      assertEquals(runner.isActive, true, 'isActive should be true when preparing')
+    }
+
+    // Check during running
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    if (runner.status === Status.Running) {
+      assertEquals(runner.isActive, true, 'isActive should be true when running')
+    }
+
+    await runPromise
+
+    assertEquals(runner.isActive, false, 'isActive should be false when finished')
+  })
+
+  await runTest('BaseRunner isActive getter should return false when finished', async () => {
+    const runner = new TestRunner()
+
+    await runner.run()
+
+    assertEquals(runner.isActive, false, 'isActive should be false when succeeded')
+    assertEquals(runner.status, Status.Succeeded, 'Status should be succeeded')
+  })
+
+  await runTest('BaseRunner isActive getter should return false when skipped', async () => {
+    const runner = new TestRunner()
+
+    runner.skip('Test skip')
+
+    assertEquals(runner.isActive, false, 'isActive should be false when skipped')
+    assertEquals(runner.status, Status.Skipped, 'Status should be skipped')
+  })
+
+  await runTest('BaseRunner isFinished getter should return false when not finished', async () => {
+    const runner = new TestRunner()
+
+    assertEquals(runner.isFinished, false, 'isFinished should be false when idle')
+
+    runner.runDelay = 100
+    const runPromise = runner.run()
+
+    // Check during active phases
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    assertEquals(runner.isFinished, false, 'isFinished should be false during active phases')
+
+    await runPromise
+
+    assertEquals(runner.isFinished, true, 'isFinished should be true when completed')
+  })
+
+  await runTest('BaseRunner isFinished getter should return true for all terminal states', async () => {
+    // Test succeeded
+    const succeededRunner = new TestRunner()
+    await succeededRunner.run()
+    assertEquals(succeededRunner.isFinished, true, 'isFinished should be true when succeeded')
+
+    // Test failed
+    const failedRunner = new TestRunner()
+    failedRunner.shouldReturnFailureReason = 'Test failure'
+    await failedRunner.run()
+    assertEquals(failedRunner.isFinished, true, 'isFinished should be true when failed')
+
+    // Test stopped
+    const stoppedRunner = new TestRunner()
+    stoppedRunner.runDelay = 100
+    const runPromise = stoppedRunner.run()
+    setTimeout(() => stoppedRunner.stop('Test stop'), 50)
+    await runPromise
+    assertEquals(stoppedRunner.isFinished, true, 'isFinished should be true when stopped')
+
+    // Test timed out
+    const timedOutRunner = new TestRunner({ timeout: 50 })
+    timedOutRunner.runDelay = 100
+    await timedOutRunner.run()
+    assertEquals(timedOutRunner.isFinished, true, 'isFinished should be true when timed out')
+
+    // Test skipped
+    const skippedRunner = new TestRunner()
+    skippedRunner.skip('Test skip')
+    assertEquals(skippedRunner.isFinished, true, 'isFinished should be true when skipped')
+
+    // Test error
+    const errorRunner = new TestRunner()
+    errorRunner.shouldFailInPrepare = true
+    await errorRunner.run()
+    assertEquals(errorRunner.isFinished, true, 'isFinished should be true when error occurred')
+  })
+
+  await runTest('BaseRunner boolean getters should be mutually exclusive', async () => {
+    const runner = new TestRunner()
+
+    // Test idle state
+    assertEquals(runner.isIdle, true, 'Should be idle initially')
+    assertEquals(runner.isPreparing, false, 'Should not be preparing when idle')
+    assertEquals(runner.isRunning, false, 'Should not be running when idle')
+    assertEquals(runner.isStopping, false, 'Should not be stopping when idle')
+    assertEquals(runner.isReleasing, false, 'Should not be releasing when idle')
+    assertEquals(runner.isStopped, false, 'Should not be stopped when idle')
+    assertEquals(runner.isFailed, false, 'Should not be failed when idle')
+    assertEquals(runner.isSucceeded, false, 'Should not be succeeded when idle')
+    assertEquals(runner.isTimedOut, false, 'Should not be timed out when idle')
+    assertEquals(runner.isSkipped, false, 'Should not be skipped when idle')
+
+    await runner.run()
+
+    // Test succeeded state
+    assertEquals(runner.isIdle, false, 'Should not be idle when succeeded')
+    assertEquals(runner.isPreparing, false, 'Should not be preparing when succeeded')
+    assertEquals(runner.isRunning, false, 'Should not be running when succeeded')
+    assertEquals(runner.isStopping, false, 'Should not be stopping when succeeded')
+    assertEquals(runner.isReleasing, false, 'Should not be releasing when succeeded')
+    assertEquals(runner.isStopped, false, 'Should not be stopped when succeeded')
+    assertEquals(runner.isFailed, false, 'Should not be failed when succeeded')
+    assertEquals(runner.isSucceeded, true, 'Should be succeeded')
+    assertEquals(runner.isTimedOut, false, 'Should not be timed out when succeeded')
+    assertEquals(runner.isSkipped, false, 'Should not be skipped when succeeded')
+  })
+
+  await runTest('BaseRunner boolean getters consistency during lifecycle', async () => {
+    const runner = new TestRunner()
+    runner.prepareDelay = 50
+    runner.runDelay = 50
+    runner.releaseDelay = 50
+
+    // Test skipped state
+    const skippedRunner = new TestRunner()
+    skippedRunner.skip('Test skip')
+
+    assertEquals(skippedRunner.isSkipped, true, 'Should be skipped')
+    assertEquals(skippedRunner.isActive, false, 'Should not be active when skipped')
+    assertEquals(skippedRunner.isFinished, true, 'Should be finished when skipped')
+
+    // Test all phases work correctly
+    const runPromise = runner.run()
+
+    await runPromise
+
+    // Final state checks
+    assertEquals(runner.isSucceeded, true, 'Should be succeeded at end')
+    assertEquals(runner.isActive, false, 'Should not be active when finished')
+    assertEquals(runner.isFinished, true, 'Should be finished when succeeded')
+  })
+
+  console.log('\n✅ All BaseRunner boolean getter tests completed!')
 }
