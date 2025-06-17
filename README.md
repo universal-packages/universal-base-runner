@@ -6,7 +6,7 @@
 
 Base class for runner oriented functionalities. It handles the lifecycle of a runner so you just worry about the implementation of what is running.
 
-The BaseRunner provides a state machine with events for the different phases: prepare → run → release, with support for stopping, skipping, timeouts, and error handling.
+The BaseRunner provides a state machine with events for the different phases: prepare → run → release → finally, with support for stopping, skipping, timeouts, and error handling.
 
 # Getting Started
 
@@ -46,6 +46,11 @@ class MyWorker extends BaseRunner {
   protected async internalStop(): Promise<void> {
     // Handle stopping the work
     console.log('Stopping work...')
+  }
+
+  protected async internalFinally(): Promise<void> {
+    // Always cleanup, regardless of outcome
+    console.log('Cleaning up always...')
   }
 }
 
@@ -95,6 +100,7 @@ The BaseRunner follows a specific state machine:
 4. **`Releasing`** - Running `internalRelease()`
 5. **`Stopping`** - Trying to stop by running `internalStop()`
 6. **Final states**: `Succeeded`, `Failed`, `Error`, `Stopped`, `TimedOut`, or `Skipped`
+   - **`internalFinally()`** runs after reaching any final state, before emitting the final event
 
 ### Getters
 
@@ -457,6 +463,50 @@ protected async internalStop(): Promise<void> {
 }
 ```
 
+#### internalFinally
+
+```ts
+protected async internalFinally(): Promise<void>
+```
+
+Override this method to implement cleanup logic that should **always** run after the runner reaches any finished state, regardless of success, failure, error, timeout, stop, or skip. This is similar to a `finally` block in try-catch-finally.
+
+This method is called after the final status is set but before the final event is emitted, giving you access to the final state while ensuring cleanup always happens.
+
+**Important Notes:**
+
+- This method runs for **all** terminal states: `Succeeded`, `Failed`, `Error`, `Stopped`, `TimedOut`, and `Skipped`
+- If this method throws an error, it will emit an `error` event but won't prevent the final status event from being emitted
+- This method has access to the final status, measurements, and timing information
+- This method is called exactly once per runner lifecycle
+
+```ts
+protected async internalFinally(): Promise<void> {
+  // Always runs regardless of outcome
+  await this.closeConnections()
+  await this.cleanupTempFiles()
+
+  // You have access to final state
+  this.logger?.info(`Runner finished with status: ${this.status}`)
+
+  if (this.error) {
+    this.logger?.error('Runner had error:', this.error)
+  }
+
+  if (this.measurement) {
+    this.logger?.info(`Total execution time: ${this.measurement.toString()}`)
+  }
+}
+```
+
+**Use Cases:**
+
+- Cleanup resources that should always be released
+- Logging final status and metrics
+- Sending notifications regardless of outcome
+- Closing database connections or file handles
+- Cleanup temporary files or directories
+
 ### Events
 
 The BaseRunner emits events for each phase of the lifecycle:
@@ -561,6 +611,18 @@ class FileProcessor extends BaseRunner {
     // Cancel any ongoing operations
     console.log('Stopping file processing...')
     this.shouldStop = true
+  }
+
+  protected async internalFinally(): Promise<void> {
+    // Always cleanup, regardless of success or failure
+    console.log(`File processing completed with status: ${this.status}`)
+
+    if (this.measurement) {
+      console.log(`Total processing time: ${this.measurement.toString()}`)
+    }
+
+    // Any cleanup that should always happen
+    this.processedData = []
   }
 }
 

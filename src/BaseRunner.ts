@@ -163,6 +163,7 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
     } catch (error: unknown) {
       this._status = Status.Error
       this._error = error as Error
+      await this._executeInternalFinally()
       this.emit('error' as any, { error: error as Error, message: 'Runner preparation failed' })
       return
     }
@@ -191,6 +192,7 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
     } catch (error: unknown) {
       this._status = Status.Error
       this._error = error as Error
+      await this._executeInternalFinally()
       this.emit('error' as any, { error: error as Error, message: 'Run failed' })
       return
     }
@@ -208,6 +210,7 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
     } catch (error: unknown) {
       this._status = Status.Error
       this._error = error as Error
+      await this._executeInternalFinally()
       this.emit('error' as any, { error: error as Error, message: 'Release failed' })
       return
     }
@@ -217,11 +220,13 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
         this._status = Status.TimedOut
         this._finishedAt = new Date()
         this._measurement = this._measurer.finish()
+        await this._executeInternalFinally()
         this.emit('timed-out', { message: 'Timeout', payload: { startedAt: this._startedAt, timedOutAt: new Date() } })
       } else {
         this._status = Status.Stopped
         this._measurement = this._measurer.finish()
         this._finishedAt = new Date()
+        await this._executeInternalFinally()
         this.emit('stopped', { measurement: this._measurement, payload: { reason: this._stoppingReason, startedAt: this._startedAt, stoppedAt: this._finishedAt } })
       }
 
@@ -232,11 +237,13 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
       this._status = Status.Failed
       this._finishedAt = new Date()
       this._measurement = this._measurer.finish()
+      await this._executeInternalFinally()
       this.emit('failed', { measurement: this._measurement, payload: { reason: this._failureReason, startedAt: this._startedAt, finishedAt: this._finishedAt } })
     } else {
       this._status = Status.Succeeded
       this._finishedAt = new Date()
       this._measurement = this._measurer.finish()
+      await this._executeInternalFinally()
       this.emit('succeeded', { measurement: this._measurement, payload: { startedAt: this._startedAt, finishedAt: this._finishedAt } })
     }
   }
@@ -293,11 +300,12 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
    * @param {string} [reason] - The reason for skipping the runner
    * @returns {void}
    */
-  public skip(reason?: string): void {
+  public async skip(reason?: string): Promise<void> {
     switch (this._status) {
       case Status.Idle:
         this._status = Status.Skipped
         this._skipReason = reason
+        await this._executeInternalFinally()
         this.emit('skipped', { payload: { reason: this._skipReason, skippedAt: new Date() } })
         break
       case Status.Skipped:
@@ -314,7 +322,7 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
    * @param {string | Error} reason - The reason for the failure
    * @returns {void}
    */
-  public fail(reason: string | Error): void {
+  public async fail(reason: string | Error): Promise<void> {
     switch (this._status) {
       case Status.Idle:
         this._status = Status.Failed
@@ -322,6 +330,7 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
         this._startedAt = new Date()
         this._finishedAt = new Date()
         this._measurement = this._measurer.finish()
+        await this._executeInternalFinally()
         this.emit('failed', { measurement: this._measurement, payload: { reason: this._failureReason, startedAt: this._startedAt, finishedAt: this._finishedAt } })
         break
       case Status.Failed:
@@ -353,6 +362,7 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
   protected async internalStop(): Promise<void> {
     throw new Error('internalStop is not implemented, this runner will just run indefinitely (probably)')
   }
+  protected async internalFinally(): Promise<void> {}
 
   private _emitWarningOrThrow(message: string): void {
     if (this.hasListeners('warning')) {
@@ -362,11 +372,20 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
     }
   }
 
+  private async _executeInternalFinally(): Promise<void> {
+    try {
+      await this.internalFinally()
+    } catch (error: unknown) {
+      this.emit('error' as any, { error: error as Error, message: 'Internal finally failed' })
+    }
+  }
+
   private async _checkForStopping(callInternalStop: boolean = true): Promise<boolean> {
     await this._dispatchMarkedAsStopping(callInternalStop)
 
     if (this._status === Status.Stopping) {
       this._status = Status.Stopped
+      await this._executeInternalFinally()
       this.emit('stopped', { measurement: this._measurer.finish(), payload: { reason: this._stoppingReason, startedAt: this._startedAt, stoppedAt: new Date() } })
 
       return true

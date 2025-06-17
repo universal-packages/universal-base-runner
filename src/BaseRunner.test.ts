@@ -7,12 +7,16 @@ class TestRunner extends BaseRunner {
   public prepareDelay: number = 0
   public runDelay: number = 0
   public releaseDelay: number = 0
+  public finallyDelay: number = 0
   public shouldFailInPrepare: boolean = false
   public shouldFailInRun: boolean = false
   public shouldFailInRelease: boolean = false
   public shouldFailInStop: boolean = false
+  public shouldFailInFinally: boolean = false
   public shouldReturnFailureReason: string | undefined = undefined
   public runWasInterrupted: boolean = false
+  public finallyWasCalled: boolean = false
+  public customFinallyFunction?: () => Promise<void>
 
   protected override async internalPrepare(): Promise<void> {
     if (this.prepareDelay > 0) {
@@ -47,6 +51,21 @@ class TestRunner extends BaseRunner {
       throw new Error('Stop failed')
     }
     this.runWasInterrupted = true
+  }
+
+  protected override async internalFinally(): Promise<void> {
+    if (this.customFinallyFunction) {
+      await this.customFinallyFunction()
+      return
+    }
+
+    if (this.finallyDelay > 0) {
+      await new Promise((resolve) => setTimeout(resolve, this.finallyDelay))
+    }
+    if (this.shouldFailInFinally) {
+      throw new Error('Finally failed')
+    }
+    this.finallyWasCalled = true
   }
 }
 
@@ -297,7 +316,7 @@ export async function baseRunnerTest() {
       events.push('skipped')
     })
 
-    runner.skip('Test skip')
+    await runner.skip('Test skip')
 
     assertEquals(runner.status, Status.Skipped, 'Runner should be in skipped state')
     assert(skippedEvent !== null, 'Skipped event should have been emitted')
@@ -323,7 +342,7 @@ export async function baseRunnerTest() {
       events.push('failed')
     })
 
-    runner.fail('Test failure')
+    await runner.fail('Test failure')
 
     assertEquals(runner.status, Status.Failed, 'Runner should be in failed state')
     assert(failedEvent !== null, 'Failed event should have been emitted')
@@ -344,7 +363,7 @@ export async function baseRunnerTest() {
       failedEvent = event
     })
 
-    runner.fail(testError)
+    await runner.fail(testError)
 
     assertEquals(runner.status, Status.Failed, 'Runner should be in failed state')
     assert(failedEvent !== null, 'Failed event should have been emitted')
@@ -384,7 +403,7 @@ export async function baseRunnerTest() {
     runner.on('warning', (event) => (warningEvent = event))
 
     await runner.run()
-    runner.skip('Too late')
+    await runner.skip('Too late')
 
     assert(warningEvent !== null, 'Warning event should have been emitted')
     assertEquals(warningEvent.message, 'Skip was called but runner can only be skipped when idle', 'Warning message should match')
@@ -397,7 +416,7 @@ export async function baseRunnerTest() {
     runner.on('warning', (event) => (warningEvent = event))
 
     await runner.run()
-    runner.fail('Too late')
+    await runner.fail('Too late')
 
     assert(warningEvent !== null, 'Warning event should have been emitted')
     assertEquals(warningEvent.message, 'Fail was called but runner can only be failed when idle', 'Warning message should match')
@@ -409,8 +428,8 @@ export async function baseRunnerTest() {
     let warningEvent: any = null
     runner.on('warning', (event) => (warningEvent = event))
 
-    runner.fail('First failure')
-    runner.fail('Second failure')
+    await runner.fail('First failure')
+    await runner.fail('Second failure')
 
     assert(warningEvent !== null, 'Warning event should have been emitted')
     assertEquals(warningEvent.message, 'Fail was called but runner is already failed', 'Warning message should match')
@@ -422,8 +441,8 @@ export async function baseRunnerTest() {
     let warningEvent: any = null
     runner.on('warning', (event) => (warningEvent = event))
 
-    runner.skip('Skipped first')
-    runner.fail('Try to fail skipped')
+    await runner.skip('Skipped first')
+    await runner.fail('Try to fail skipped')
 
     assert(warningEvent !== null, 'Warning event should have been emitted')
     assertEquals(warningEvent.message, 'Fail was called but runner can only be failed when idle', 'Warning message should match')
@@ -557,7 +576,7 @@ export async function baseRunnerTest() {
     let warningEvent: any = null
     runner.on('warning', (event) => (warningEvent = event))
 
-    runner.skip('Test skip')
+    await runner.skip('Test skip')
     await runner.stop('Try to stop skipped')
 
     assert(warningEvent !== null, 'Warning event should have been emitted')
@@ -636,8 +655,8 @@ export async function baseRunnerTest() {
     let warningEvent: any = null
     runner.on('warning', (event) => (warningEvent = event))
 
-    runner.skip('First skip')
-    runner.skip('Second skip')
+    await runner.skip('First skip')
+    await runner.skip('Second skip')
 
     assert(warningEvent !== null, 'Warning event should have been emitted')
     assertEquals(warningEvent.message, 'Skip was called but runner is already skipped', 'Warning message should match')
@@ -691,11 +710,11 @@ export async function baseRunnerTest() {
     const runner = new TestRunner()
 
     // Don't add warning listener
-    runner.fail('First failure')
+    await runner.fail('First failure')
 
     let errorThrown = false
     try {
-      runner.fail('Second failure') // Second fail should throw
+      await runner.fail('Second failure') // Second fail should throw
     } catch (error: any) {
       errorThrown = true
       assertEquals(error.message, 'Fail was called but runner is already failed', 'Error message should match')
@@ -816,6 +835,207 @@ export async function baseRunnerTest() {
   console.log('\n✅ All BaseRunner tests completed!')
 
   // ===========================================
+  // INTERNAL FINALLY TESTS
+  // ===========================================
+  console.log('\n🧪 Testing BaseRunner internalFinally Feature')
+  console.log('='.repeat(50))
+
+  await runTest('BaseRunner internalFinally should be called on successful run', async () => {
+    const runner = new TestRunner()
+
+    await runner.run()
+
+    assertEquals(runner.status, Status.Succeeded, 'Runner should have succeeded')
+    assertEquals(runner.finallyWasCalled, true, 'internalFinally should have been called')
+  })
+
+  await runTest('BaseRunner internalFinally should be called on failed run', async () => {
+    const runner = new TestRunner()
+    runner.shouldReturnFailureReason = 'Test failure'
+
+    await runner.run()
+
+    assertEquals(runner.status, Status.Failed, 'Runner should have failed')
+    assertEquals(runner.finallyWasCalled, true, 'internalFinally should have been called')
+  })
+
+  await runTest('BaseRunner internalFinally should be called on preparation error', async () => {
+    const runner = new TestRunner()
+    runner.shouldFailInPrepare = true
+
+    await runner.run()
+
+    assertEquals(runner.status, Status.Error, 'Runner should be in error state')
+    assertEquals(runner.finallyWasCalled, true, 'internalFinally should have been called')
+  })
+
+  await runTest('BaseRunner internalFinally should be called on run error', async () => {
+    const runner = new TestRunner()
+    runner.shouldFailInRun = true
+
+    await runner.run()
+
+    assertEquals(runner.status, Status.Error, 'Runner should be in error state')
+    assertEquals(runner.finallyWasCalled, true, 'internalFinally should have been called')
+  })
+
+  await runTest('BaseRunner internalFinally should be called on release error', async () => {
+    const runner = new TestRunner()
+    runner.shouldFailInRelease = true
+
+    await runner.run()
+
+    assertEquals(runner.status, Status.Error, 'Runner should be in error state')
+    assertEquals(runner.finallyWasCalled, true, 'internalFinally should have been called')
+  })
+
+  await runTest('BaseRunner internalFinally should be called on timeout', async () => {
+    const runner = new TestRunner({ timeout: 50 })
+    runner.runDelay = 100 // Longer than timeout
+
+    await runner.run()
+
+    assertEquals(runner.status, Status.TimedOut, 'Runner should have timed out')
+    assertEquals(runner.finallyWasCalled, true, 'internalFinally should have been called')
+  })
+
+  await runTest('BaseRunner internalFinally should be called on stop', async () => {
+    const runner = new TestRunner()
+    runner.runDelay = 100
+
+    const runPromise = runner.run()
+    setTimeout(() => runner.stop('Test stop'), 50)
+
+    await runPromise
+
+    assertEquals(runner.status, Status.Stopped, 'Runner should be stopped')
+    assertEquals(runner.finallyWasCalled, true, 'internalFinally should have been called')
+  })
+
+  await runTest('BaseRunner internalFinally should be called on skip', async () => {
+    const runner = new TestRunner()
+
+    await runner.skip('Test skip')
+
+    assertEquals(runner.status, Status.Skipped, 'Runner should be skipped')
+    assertEquals(runner.finallyWasCalled, true, 'internalFinally should have been called')
+  })
+
+  await runTest('BaseRunner internalFinally should be called on fail', async () => {
+    const runner = new TestRunner()
+
+    await runner.fail('Test fail')
+
+    assertEquals(runner.status, Status.Failed, 'Runner should be failed')
+    assertEquals(runner.finallyWasCalled, true, 'internalFinally should have been called')
+  })
+
+  await runTest('BaseRunner internalFinally should handle errors gracefully', async () => {
+    const runner = new TestRunner()
+    runner.shouldFailInFinally = true
+
+    const events: string[] = []
+    let errorEvent: any = null
+    let succeededEvent: any = null
+
+    runner.on('error', (event) => {
+      errorEvent = event
+      events.push('error')
+    })
+    runner.on('succeeded', (event) => {
+      succeededEvent = event
+      events.push('succeeded')
+    })
+
+    await runner.run()
+
+    assertEquals(runner.status, Status.Succeeded, 'Runner should still succeed despite finally error')
+    assertEquals(runner.finallyWasCalled, false, 'internalFinally should have thrown before setting flag')
+    assert(errorEvent !== null, 'Error event should have been emitted for finally failure')
+    assertEquals(errorEvent.message, 'Internal finally failed', 'Error message should match')
+    assert(succeededEvent !== null, 'Succeeded event should still have been emitted')
+    assertEquals(events.length, 2, 'Both error and succeeded events should be emitted')
+    assertEquals(events[0], 'error', 'Error should be emitted first')
+    assertEquals(events[1], 'succeeded', 'Succeeded should be emitted after')
+  })
+
+  await runTest('BaseRunner internalFinally should handle errors gracefully on failure', async () => {
+    const runner = new TestRunner()
+    runner.shouldReturnFailureReason = 'Original failure'
+    runner.shouldFailInFinally = true
+
+    const events: string[] = []
+    let errorEvent: any = null
+    let failedEvent: any = null
+
+    runner.on('error', (event) => {
+      errorEvent = event
+      events.push('error')
+    })
+    runner.on('failed', (event) => {
+      failedEvent = event
+      events.push('failed')
+    })
+
+    await runner.run()
+
+    assertEquals(runner.status, Status.Failed, 'Runner should still fail despite finally error')
+    assert(errorEvent !== null, 'Error event should have been emitted for finally failure')
+    assertEquals(errorEvent.message, 'Internal finally failed', 'Error message should match')
+    assert(failedEvent !== null, 'Failed event should still have been emitted')
+    assertEquals(failedEvent.payload.reason, 'Original failure', 'Original failure reason should be preserved')
+    assertEquals(events.length, 2, 'Both error and failed events should be emitted')
+    assertEquals(events[0], 'error', 'Error should be emitted first')
+    assertEquals(events[1], 'failed', 'Failed should be emitted after')
+  })
+
+  await runTest('BaseRunner internalFinally should handle async operations', async () => {
+    const runner = new TestRunner()
+    runner.finallyDelay = 50
+
+    const startTime = Date.now()
+    await runner.run()
+    const endTime = Date.now()
+
+    assertEquals(runner.status, Status.Succeeded, 'Runner should have succeeded')
+    assertEquals(runner.finallyWasCalled, true, 'internalFinally should have been called')
+    assert(endTime - startTime >= 50, 'Finally delay should have been respected')
+  })
+
+  await runTest('BaseRunner internalFinally should be called exactly once per run', async () => {
+    const runner = new TestRunner()
+    let finallyCalls = 0
+
+    // Use custom function to count calls
+    runner.customFinallyFunction = async () => {
+      finallyCalls++
+    }
+
+    await runner.run()
+
+    assertEquals(finallyCalls, 1, 'internalFinally should be called exactly once')
+  })
+
+  await runTest('BaseRunner internalFinally should have access to final state', async () => {
+    const runner = new TestRunner()
+    let statusInFinally: Status | null = null
+    let measurementInFinally: any = null
+
+    // Use custom function to capture state
+    runner.customFinallyFunction = async () => {
+      statusInFinally = runner.status
+      measurementInFinally = runner.measurement
+    }
+
+    await runner.run()
+
+    assertEquals(statusInFinally, Status.Succeeded, 'Status should be set before internalFinally')
+    assert(measurementInFinally !== null, 'Measurement should be available in internalFinally')
+  })
+
+  console.log('\n✅ All BaseRunner internalFinally tests completed!')
+
+  // ===========================================
   // GETTER TESTS
   // ===========================================
   console.log('\n🧪 Testing BaseRunner Getters')
@@ -894,7 +1114,7 @@ export async function baseRunnerTest() {
   await runTest('BaseRunner skipReason getter should return reason when skipped', async () => {
     const runner = new TestRunner()
 
-    runner.skip('Test skip reason')
+    await runner.skip('Test skip reason')
 
     assertEquals(runner.skipReason, 'Test skip reason', 'Skip reason should match')
     assertEquals(runner.status, Status.Skipped, 'Runner should be in skipped state')
@@ -903,7 +1123,7 @@ export async function baseRunnerTest() {
   await runTest('BaseRunner skipReason getter should return null when skipped without reason', async () => {
     const runner = new TestRunner()
 
-    runner.skip()
+    await runner.skip()
 
     assertEquals(runner.skipReason, null, 'Skip reason should be null when no reason given')
     assertEquals(runner.status, Status.Skipped, 'Runner should be in skipped state')
@@ -918,7 +1138,7 @@ export async function baseRunnerTest() {
   await runTest('BaseRunner startedAt getter should return null when skipped', async () => {
     const runner = new TestRunner()
 
-    runner.skip('Test skip')
+    await runner.skip('Test skip')
 
     assertEquals(runner.startedAt, null, 'StartedAt should be null when skipped')
   })
@@ -1323,7 +1543,7 @@ export async function baseRunnerTest() {
   await runTest('BaseRunner isSkipped getter should return true when skipped', async () => {
     const runner = new TestRunner()
 
-    runner.skip('Test skip')
+    await runner.skip('Test skip')
 
     assertEquals(runner.isSkipped, true, 'isSkipped should be true when skipped')
     assertEquals(runner.status, Status.Skipped, 'Status should be skipped')
@@ -1383,7 +1603,7 @@ export async function baseRunnerTest() {
   await runTest('BaseRunner isActive getter should return false when skipped', async () => {
     const runner = new TestRunner()
 
-    runner.skip('Test skip')
+    await runner.skip('Test skip')
 
     assertEquals(runner.isActive, false, 'isActive should be false when skipped')
     assertEquals(runner.status, Status.Skipped, 'Status should be skipped')
@@ -1482,7 +1702,7 @@ export async function baseRunnerTest() {
 
     // Test skipped state
     const skippedRunner = new TestRunner()
-    skippedRunner.skip('Test skip')
+    await skippedRunner.skip('Test skip')
 
     assertEquals(skippedRunner.isSkipped, true, 'Should be skipped')
     assertEquals(skippedRunner.isActive, false, 'Should not be active when skipped')
