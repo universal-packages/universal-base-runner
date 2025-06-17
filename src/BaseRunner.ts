@@ -192,6 +192,7 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
       this._status = Status.Error
       this._error = error as Error
       this.emit('error' as any, { error: error as Error, message: 'Run failed' })
+      return
     }
 
     try {

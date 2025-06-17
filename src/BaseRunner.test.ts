@@ -181,6 +181,35 @@ export async function baseRunnerTest() {
     assertEquals(events[4], 'error', 'Last event should be error')
   })
 
+  await runTest('BaseRunner should handle internalRun throwing errors (should stop immediately like prepare errors)', async () => {
+    const runner = new TestRunner()
+    const events: string[] = []
+
+    runner.shouldFailInRun = true
+
+    let errorEvent: any = null
+    runner.on('preparing', () => events.push('preparing'))
+    runner.on('prepared', () => events.push('prepared'))
+    runner.on('running', () => events.push('running'))
+    runner.on('releasing', () => events.push('releasing'))
+    runner.on('released', () => events.push('released'))
+    runner.on('error', (event) => {
+      errorEvent = event
+      events.push('error')
+    })
+
+    await runner.run()
+
+    assertEquals(runner.status, Status.Error, 'Runner should be in error state')
+    assert(errorEvent !== null, 'Error event should have been emitted')
+    assertEquals(errorEvent.message, 'Run failed', 'Error message should match')
+    assertEquals(events.length, 4, 'Should only have preparing, prepared, running, error events - NOT releasing/released')
+    assertEquals(events[0], 'preparing', 'First event should be preparing')
+    assertEquals(events[1], 'prepared', 'Second event should be prepared')
+    assertEquals(events[2], 'running', 'Third event should be running')
+    assertEquals(events[3], 'error', 'Last event should be error - should NOT continue to releasing')
+  })
+
   await runTest('BaseRunner should handle timeout', async () => {
     const runner = new TestRunner({ timeout: 100 })
     const events: string[] = []
