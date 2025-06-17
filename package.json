@@ -19,7 +19,7 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@universal-packages/event-emitter": "^2.2.0",
+    "@universal-packages/event-emitter": "^2.2.1",
     "@universal-packages/time-measurer": "^2.1.0"
   },
   "devDependencies": {
