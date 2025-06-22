@@ -99,6 +99,10 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
     return this._status === Status.Failed
   }
 
+  public get isError(): boolean {
+    return this._status === Status.Error
+  }
+
   public get isSucceeded(): boolean {
     return this._status === Status.Succeeded
   }

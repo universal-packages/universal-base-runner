@@ -262,6 +262,14 @@ get isFailed(): boolean
 
 Returns `true` if the runner is in the `Failed` state.
 
+#### isError
+
+```ts
+get isError(): boolean
+```
+
+Returns `true` if the runner is in the `Error` state.
+
 #### isSucceeded
 
 ```ts

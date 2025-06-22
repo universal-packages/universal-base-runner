@@ -1500,6 +1500,16 @@ export async function baseRunnerTest() {
     assertEquals(runner.isFailed, false, 'isFailed should be false when succeeded')
   })
 
+  await runTest('BaseRunner isError getter should return true when error', async () => {
+    const runner = new TestRunner()
+    runner.shouldFailInPrepare = true
+
+    await runner.run()
+
+    assertEquals(runner.isError, true, 'isError should be true when error')
+    assertEquals(runner.status, Status.Error, 'Status should be error')
+  })
+
   await runTest('BaseRunner isSucceeded getter should return true when succeeded', async () => {
     const runner = new TestRunner()
 
