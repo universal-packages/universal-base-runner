@@ -17,6 +17,7 @@ class TestRunner extends BaseRunner {
   public runWasInterrupted: boolean = false
   public finallyWasCalled: boolean = false
   public customFinallyFunction?: () => Promise<void>
+  public customInternalRun?: () => Promise<string | undefined>
 
   protected override async internalPrepare(): Promise<void> {
     if (this.prepareDelay > 0) {
@@ -28,6 +29,10 @@ class TestRunner extends BaseRunner {
   }
 
   protected override async internalRun(): Promise<string | undefined> {
+    if (this.customInternalRun) {
+      return await this.customInternalRun()
+    }
+
     if (this.runDelay > 0) {
       await new Promise((resolve) => setTimeout(resolve, this.runDelay))
     }
@@ -259,6 +264,51 @@ export async function baseRunnerTest() {
     assertEquals(events[4], 'releasing', 'Sixth event should be releasing')
     assertEquals(events[5], 'released', 'Seventh event should be released')
     assertEquals(events[6], 'timed-out', 'Last event should be timed-out')
+  })
+
+  await runTest('BaseRunner should complete lifecycle quickly on timeout while internal run continues in background', async () => {
+    const runner = new TestRunner({ timeout: 100 })
+    const events: string[] = []
+    let internalRunCompleted = false
+    let internalRunStarted = false
+
+    // Use customInternalRun to track its progress
+    runner.customInternalRun = async (): Promise<string | undefined> => {
+      internalRunStarted = true
+      await new Promise((resolve) => setTimeout(resolve, 300)) // 3x longer than timeout
+      internalRunCompleted = true
+      return undefined
+    }
+
+    runner.on('preparing', () => events.push('preparing'))
+    runner.on('prepared', () => events.push('prepared'))
+    runner.on('running', () => events.push('running'))
+    runner.on('stopping', () => events.push('stopping'))
+    runner.on('releasing', () => events.push('releasing'))
+    runner.on('released', () => events.push('released'))
+    runner.on('timed-out', () => events.push('timed-out'))
+
+    const startTime = Date.now()
+    await runner.run()
+    const endTime = Date.now()
+    const totalDuration = endTime - startTime
+
+    // Verify the runner completed quickly (around timeout duration, not internal run duration)
+    assert(totalDuration < 200, `Runner should complete in ~100ms, but took ${totalDuration}ms`)
+    assert(totalDuration >= 100, `Runner should take at least the timeout duration (100ms), but took ${totalDuration}ms`)
+
+    // Verify proper lifecycle completion
+    assertEquals(runner.status, Status.TimedOut, 'Runner should be in timed out state')
+    assertEquals(events.length, 7, 'All lifecycle events should have been emitted')
+    assertEquals(events[6], 'timed-out', 'Last event should be timed-out')
+
+    // Verify internal run started but didn't block the lifecycle
+    assertEquals(internalRunStarted, true, 'Internal run should have started')
+    assertEquals(internalRunCompleted, false, 'Internal run should not have completed yet (still running in background)')
+
+    // Wait a bit more to verify internal run can complete in background
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    assertEquals(internalRunCompleted, true, 'Internal run should have completed in background')
   })
 
   await runTest('BaseRunner should handle stop request', async () => {
@@ -537,14 +587,13 @@ export async function baseRunnerTest() {
 
     const runPromise = runner.run()
 
-    // Wait for releasing state to start, then try to run again
-    await new Promise((resolve) => setTimeout(resolve, 50))
-    await runner.run()
+    // Wait for releasing phase and try to stop
+    setTimeout(() => runner.stop('Stop during release'), 50)
 
     await runPromise
 
     assert(warningEvent !== null, 'Warning event should have been emitted')
-    assertEquals(warningEvent.message, 'Run was called but runner is already running', 'Warning message should match')
+    assertEquals(warningEvent.message, 'Stop was called but runner is releasing', 'Warning message should match')
   })
 
   await runTest('BaseRunner should emit warning when trying to stop while already stopping', async () => {
@@ -628,25 +677,6 @@ export async function baseRunnerTest() {
 
     assert(warningEvent !== null, 'Warning event should have been emitted')
     assertEquals(warningEvent.message, 'Stop was called but runner has already finished', 'Warning message should match')
-  })
-
-  await runTest('BaseRunner should emit warning when trying to stop running runner after run finished', async () => {
-    const runner = new TestRunner()
-
-    let warningEvent: any = null
-    runner.on('warning', (event) => (warningEvent = event))
-
-    // Directly set the internal state to simulate a runner that finished running but is still in Running state
-    const runPromise = runner.run()
-
-    // Wait for the run to complete and try to stop
-    await new Promise((resolve) => setTimeout(resolve, 50))
-    await runner.stop('Try to stop after run finished')
-
-    await runPromise
-
-    // This might not trigger in our current setup, let's try a different approach
-    assert(true, 'Test completed') // This specific case might need special internal state manipulation
   })
 
   await runTest('BaseRunner should emit warning when trying to skip already skipped runner', async () => {

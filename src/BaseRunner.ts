@@ -178,19 +178,53 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
       this._status = Status.Running
       this.emit('running', { payload: { startedAt: this._startedAt } })
 
-      if (this.options.timeout) {
-        this._timeout = setTimeout(() => {
-          this._timedOut = true
-          this.stop('Runner timed out')
-        }, this.options.timeout)
-      }
-
       const internalRunPromise = this.internalRun()
+      let internalRunCompleted = false
+      let timeoutOccurred = false
 
       await this._dispatchMarkedAsStopping()
 
-      this._failureReason = await internalRunPromise
-      this._runHasFinished = true
+      // Race between internal run completion and timeout
+      if (this.options.timeout) {
+        // Create timeout promise that resolves when timeout occurs
+        const timeoutPromise = new Promise<void>((resolve) => {
+          this._timeout = setTimeout(() => {
+            this._timedOut = true
+            timeoutOccurred = true
+            // Don't call this.stop() here as it creates race conditions
+            // Just mark as timed out and let the main flow handle stopping
+            resolve()
+          }, this.options.timeout)
+        })
+
+        await Promise.race([
+          internalRunPromise.then((result) => {
+            internalRunCompleted = true
+            this._failureReason = result
+            return result
+          }),
+          timeoutPromise
+        ])
+
+        // If we timed out, handle the stopping flow
+        if (timeoutOccurred && !internalRunCompleted) {
+          this._stoppingReason = 'Runner timed out'
+          await this._attemptStop(false) // Don't call internalStop since we're letting it run in background
+
+          // Internal run is still running in background, but we proceed with lifecycle
+          internalRunPromise.catch(() => {
+            // Silently catch any errors from the background internalRun to prevent unhandled rejection
+          })
+        }
+      } else {
+        this._failureReason = await internalRunPromise
+        internalRunCompleted = true
+      }
+
+      // Only set run as finished if internal run actually completed (not timed out)
+      if (internalRunCompleted) {
+        this._runHasFinished = true
+      }
 
       if (this._timeout) clearTimeout(this._timeout)
     } catch (error: unknown) {
