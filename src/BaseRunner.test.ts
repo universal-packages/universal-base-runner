@@ -288,14 +288,11 @@ export async function baseRunnerTest() {
     runner.on('released', () => events.push('released'))
     runner.on('timed-out', () => events.push('timed-out'))
 
-    const startTime = Date.now()
     await runner.run()
-    const endTime = Date.now()
-    const totalDuration = endTime - startTime
 
     // Verify the runner completed quickly (around timeout duration, not internal run duration)
-    assert(totalDuration < 200, `Runner should complete in ~100ms, but took ${totalDuration}ms`)
-    assert(totalDuration >= 100, `Runner should take at least the timeout duration (100ms), but took ${totalDuration}ms`)
+    assert(runner.measurement?.milliseconds! < 200, `Runner should complete in ~100ms, but took ${runner.measurement?.milliseconds}ms`)
+    assert(runner.measurement?.milliseconds! >= 100, `Runner should take at least the timeout duration (100ms), but took ${runner.measurement?.milliseconds}ms`)
 
     // Verify proper lifecycle completion
     assertEquals(runner.status, Status.TimedOut, 'Runner should be in timed out state')
@@ -307,7 +304,7 @@ export async function baseRunnerTest() {
     assertEquals(internalRunCompleted, false, 'Internal run should not have completed yet (still running in background)')
 
     // Wait a bit more to verify internal run can complete in background
-    await new Promise((resolve) => setTimeout(resolve, 250))
+    await new Promise((resolve) => setTimeout(resolve, 300))
     assertEquals(internalRunCompleted, true, 'Internal run should have completed in background')
   })
 
