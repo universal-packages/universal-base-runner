@@ -89,6 +89,12 @@ All options from [@universal-packages/event-emitter](https://github.com/universa
 - **`timeout`** `Number` `optional`
   The timeout in milliseconds. If the runner takes longer than this time, it will be stopped.
   Timeout only applies to the running state. Preparation and releasing states are not affected.
+- **`runMode`** `single | multi` `optional` `default: single`
+  The run mode. When set to 'single', the runner can only be run once. When set to 'multi', the runner can be run multiple times and will reset to idle state after completion.
+- **`prepareOnMultiMode`** `always | never | on-first-run` `optional` `default: always`
+  Whether to prepare the runner on multi mode.
+- **`releaseOnMultiMode`** `always | never` `optional` `default: never`
+  Whether to release the runner on multi mode.
 
 ### Status Lifecycle
 
