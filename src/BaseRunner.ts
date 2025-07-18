@@ -132,7 +132,7 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
       ignoreErrors: undefined,
       newListenerEvent: undefined,
       removeListenerEvent: undefined,
-      verboseMemoryLeak: undefined,
+      verboseMemoryLeak: false,
       maxListeners: 0,
       ...options
     })
