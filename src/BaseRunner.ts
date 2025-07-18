@@ -1,7 +1,7 @@
 import { EventEmitter } from '@universal-packages/event-emitter'
 import { Measurement, TimeMeasurer } from '@universal-packages/time-measurer'
 
-import { BaseRunnerEventMap, BaseRunnerOptions, Status } from './BaseRunner.types'
+import { BaseRunnerEventMap, BaseRunnerOptions, PrepareOnMultiMode, ReleaseOnMultiMode, RunMode, Status } from './BaseRunner.types'
 
 const STATUS_LEVEL_MAP = {
   [Status.Idle]: 0,
@@ -26,7 +26,7 @@ const LEVEL_STATUSES_MAP = {
 }
 
 export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMap> extends EventEmitter<TEventMap> {
-  public override readonly options: BaseRunnerOptions
+  declare public readonly options: BaseRunnerOptions
 
   private _status: Status = Status.Idle
   private _timeout: NodeJS.Timeout | null = null
@@ -124,8 +124,15 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
   }
 
   public constructor(options?: BaseRunnerOptions) {
-    super({ ignoreErrors: true, maxListeners: 0, verboseMemoryLeak: false, ...options })
-    this.options = { ...options }
+    super({
+      ignoreErrors: true,
+      maxListeners: 0,
+      verboseMemoryLeak: false,
+      runMode: RunMode.Single,
+      prepareOnMultiMode: PrepareOnMultiMode.OnFirstRun,
+      releaseOnMultiMode: ReleaseOnMultiMode.Never,
+      ...options
+    })
   }
 
   /**
