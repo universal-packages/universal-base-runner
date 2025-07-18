@@ -26,7 +26,7 @@ const LEVEL_STATUSES_MAP = {
 }
 
 export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMap> extends EventEmitter<TEventMap> {
-  public override readonly options: BaseRunnerOptions
+  declare public readonly options: BaseRunnerOptions
 
   private _status: Status = Status.Idle
   private _timeout: NodeJS.Timeout | null = null
