@@ -130,8 +130,8 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
       prepareOnMultiMode: PrepareOnMultiMode.Always,
       releaseOnMultiMode: ReleaseOnMultiMode.Never,
       ignoreErrors: undefined,
-      newListenerEvent: undefined,
-      removeListenerEvent: undefined,
+      newListenerEvent: false,
+      removeListenerEvent: false,
       verboseMemoryLeak: false,
       maxListeners: 0,
       ...options
