@@ -1,7 +1,7 @@
 import { EventEmitter } from '@universal-packages/event-emitter'
 import { Measurement, TimeMeasurer } from '@universal-packages/time-measurer'
 
-import { BaseRunnerEventMap, BaseRunnerOptions, PrepareOnMultiMode, ReleaseOnMultiMode, RunMode, Status } from './BaseRunner.types'
+import { BaseRunnerEventMap, BaseRunnerOptions, Status } from './BaseRunner.types'
 
 const STATUS_LEVEL_MAP = {
   [Status.Idle]: 0,
@@ -128,11 +128,12 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
       ignoreErrors: true,
       maxListeners: 0,
       verboseMemoryLeak: false,
-      runMode: RunMode.Single,
-      prepareOnMultiMode: PrepareOnMultiMode.OnFirstRun,
-      releaseOnMultiMode: ReleaseOnMultiMode.Never,
       ...options
     })
+
+    this.options = {
+      ...options
+    }
   }
 
   /**
