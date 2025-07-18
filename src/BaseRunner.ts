@@ -1,7 +1,7 @@
 import { EventEmitter } from '@universal-packages/event-emitter'
 import { Measurement, TimeMeasurer } from '@universal-packages/time-measurer'
 
-import { BaseRunnerEventMap, BaseRunnerOptions, PrepareOnMultiMode, ReleaseOnMultiMode, RunMode, Status } from './BaseRunner.types'
+import { BaseRunnerEventMap, BaseRunnerOptions, Status } from './BaseRunner.types'
 
 const STATUS_LEVEL_MAP = {
   [Status.Idle]: 0,
@@ -26,7 +26,7 @@ const LEVEL_STATUSES_MAP = {
 }
 
 export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMap> extends EventEmitter<TEventMap> {
-  declare public readonly options: BaseRunnerOptions
+  public override readonly options: BaseRunnerOptions
 
   private _status: Status = Status.Idle
   private _timeout: NodeJS.Timeout | null = null
@@ -42,7 +42,6 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
   private _finishedAt: Date | null = null
   private _measurement: Measurement | null = null
   private _timedOut: boolean = false
-  private _prepared: boolean = false
 
   public get status(): Status {
     return this._status
@@ -125,15 +124,8 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
   }
 
   public constructor(options?: BaseRunnerOptions) {
-    super({
-      ignoreErrors: true,
-      maxListeners: 0,
-      verboseMemoryLeak: false,
-      runMode: RunMode.Single,
-      prepareOnMultiMode: PrepareOnMultiMode.Always,
-      releaseOnMultiMode: ReleaseOnMultiMode.Never,
-      ...options
-    })
+    super({ ignoreErrors: true, maxListeners: 0, verboseMemoryLeak: false, ...options })
+    this.options = { ...options }
   }
 
   /**
@@ -157,48 +149,27 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
     this._startedAt = new Date()
     this._measurer = TimeMeasurer.start()
 
-    let itShouldPrepare = false
+    try {
+      const prepareMeasurer = TimeMeasurer.start()
+      const prepareStartedAt = new Date()
 
-    if (this.options.runMode === RunMode.Single) {
-      // Always prepare in single mode
-      itShouldPrepare = true
-    } else if (this.options.runMode === RunMode.Multi) {
-      // In multi mode, check the prepareOnMultiMode option
-      if (this.options.prepareOnMultiMode === PrepareOnMultiMode.Always) {
-        itShouldPrepare = true
-      } else if (this.options.prepareOnMultiMode === PrepareOnMultiMode.OnFirstRun && !this._prepared) {
-        itShouldPrepare = true
-      } else if (this.options.prepareOnMultiMode === PrepareOnMultiMode.Never) {
-        itShouldPrepare = false
-      }
-    }
+      if (await this._checkForStopping(false)) return
 
-    if (itShouldPrepare) {
-      try {
-        const prepareMeasurer = TimeMeasurer.start()
-        const prepareStartedAt = new Date()
+      this._status = Status.Preparing
+      this.emit('preparing', { payload: { startedAt: prepareStartedAt } })
 
-        if (await this._checkForStopping(false)) return
+      await this.internalPrepare()
 
-        this._status = Status.Preparing
-        this.emit('preparing', { payload: { startedAt: prepareStartedAt } })
-
-        await this.internalPrepare()
-
-        this.emit('prepared', {
-          measurement: prepareMeasurer.finish(),
-          payload: { startedAt: prepareStartedAt, finishedAt: new Date() }
-        })
-
-        this._prepared = true
-      } catch (error: unknown) {
-        this._status = Status.Error
-        this._error = error as Error
-        await this._executeInternalFinally()
-        this.emit('error' as any, { error: error as Error, message: 'Runner preparation failed' })
-        this._resetIfMultiMode()
-        return
-      }
+      this.emit('prepared', {
+        measurement: prepareMeasurer.finish(),
+        payload: { startedAt: prepareStartedAt, finishedAt: new Date() }
+      })
+    } catch (error: unknown) {
+      this._status = Status.Error
+      this._error = error as Error
+      await this._executeInternalFinally()
+      this.emit('error' as any, { error: error as Error, message: 'Runner preparation failed' })
+      return
     }
 
     if (await this._checkForStopping(false)) return
@@ -261,39 +232,25 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
       this._error = error as Error
       await this._executeInternalFinally()
       this.emit('error' as any, { error: error as Error, message: 'Run failed' })
-      this._resetIfMultiMode()
       return
     }
 
-    let shouldRelease = false
+    try {
+      const releasingStartedAt = new Date()
+      const releasingMeasurer = TimeMeasurer.start()
 
-    if (this.options.runMode === RunMode.Single) {
-      shouldRelease = true
-    } else if (this.options.runMode === RunMode.Multi) {
-      if (this.options.releaseOnMultiMode === ReleaseOnMultiMode.Always) {
-        shouldRelease = true
-      }
-    }
+      this._status = Status.Releasing
+      this.emit('releasing', { payload: { startedAt: releasingStartedAt } })
 
-    if (shouldRelease) {
-      try {
-        const releasingStartedAt = new Date()
-        const releasingMeasurer = TimeMeasurer.start()
+      await this.internalRelease()
 
-        this._status = Status.Releasing
-        this.emit('releasing', { payload: { startedAt: releasingStartedAt } })
-
-        await this.internalRelease()
-
-        this.emit('released', { measurement: releasingMeasurer.finish(), payload: { startedAt: releasingStartedAt, finishedAt: new Date() } })
-      } catch (error: unknown) {
-        this._status = Status.Error
-        this._error = error as Error
-        await this._executeInternalFinally()
-        this.emit('error' as any, { error: error as Error, message: 'Release failed' })
-        this._resetIfMultiMode()
-        return
-      }
+      this.emit('released', { measurement: releasingMeasurer.finish(), payload: { startedAt: releasingStartedAt, finishedAt: new Date() } })
+    } catch (error: unknown) {
+      this._status = Status.Error
+      this._error = error as Error
+      await this._executeInternalFinally()
+      this.emit('error' as any, { error: error as Error, message: 'Release failed' })
+      return
     }
 
     if (this._stoppingIsActive) {
@@ -311,7 +268,6 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
         this.emit('stopped', { measurement: this._measurement, payload: { reason: this._stoppingReason, startedAt: this._startedAt, stoppedAt: this._finishedAt } })
       }
 
-      this._resetIfMultiMode()
       return
     }
 
@@ -328,8 +284,6 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
       await this._executeInternalFinally()
       this.emit('succeeded', { measurement: this._measurement, payload: { startedAt: this._startedAt, finishedAt: this._finishedAt } })
     }
-
-    this._resetIfMultiMode()
   }
 
   /**
@@ -391,7 +345,6 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
         this._skipReason = reason
         await this._executeInternalFinally()
         this.emit('skipped', { payload: { reason: this._skipReason, skippedAt: new Date() } })
-        this._resetIfMultiMode()
         break
       case Status.Skipped:
         this._emitWarningOrThrow('Skip was called but runner is already skipped')
@@ -417,7 +370,6 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
         this._measurement = this._measurer.finish()
         await this._executeInternalFinally()
         this.emit('failed', { measurement: this._measurement, payload: { reason: this._failureReason, startedAt: this._startedAt, finishedAt: this._finishedAt } })
-        this._resetIfMultiMode()
         break
       case Status.Failed:
         this._emitWarningOrThrow('Fail was called but runner is already failed')
@@ -473,7 +425,6 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
       this._status = Status.Stopped
       await this._executeInternalFinally()
       this.emit('stopped', { measurement: this._measurer.finish(), payload: { reason: this._stoppingReason, startedAt: this._startedAt, stoppedAt: new Date() } })
-      this._resetIfMultiMode()
 
       return true
     }
@@ -498,22 +449,5 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
     } catch (error: unknown) {
       this.emit('error' as any, { error: error as Error, message: 'Attempt to stop runner failed' })
     }
-  }
-
-  private _resetIfMultiMode(): void {
-    if (this.options.runMode === RunMode.Multi) {
-      this._resetToIdle()
-    }
-  }
-
-  private _resetToIdle(): void {
-    this._status = Status.Idle
-    this._timeout = null
-    this._stoppingReason = undefined
-    this._markedAsStopping = false
-    this._stoppingIsActive = false
-    this._runHasFinished = false
-    this._finishedAt = null
-    this._timedOut = false
   }
 }
