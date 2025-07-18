@@ -1,6 +1,6 @@
 {
   "name": "@universal-packages/base-runner",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "description": "Base class for runners.",
   "author": "David De Anda <david@universal-packages.com> (https://github.com/universal-packages)",
   "license": "MIT",
