@@ -129,6 +129,11 @@ export class BaseRunner<TEventMap extends BaseRunnerEventMap = BaseRunnerEventMa
       runMode: RunMode.Single,
       prepareOnMultiMode: PrepareOnMultiMode.Always,
       releaseOnMultiMode: ReleaseOnMultiMode.Never,
+      ignoreErrors: undefined,
+      newListenerEvent: undefined,
+      removeListenerEvent: undefined,
+      verboseMemoryLeak: undefined,
+      maxListeners: undefined,
       ...options
     })
   }
